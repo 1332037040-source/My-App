@@ -6,6 +6,10 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "planner/TaskPlanner.h"
 #include "planner/TaskBuilder.h"
 #include "report/ReportWriter.h"
@@ -37,7 +41,7 @@ static void PrintResults(
     ReportWriter& reporter
 ) {
     std::cout << "\n\n";
-    std::cout << "============= 峰值预览结果 =============\n";
+    std::cout << "============= Peak Preview Results =============\n";
     std::cout.flush();
 
     int success = 0;
@@ -46,36 +50,36 @@ static void PrintResults(
         const auto& job = jobs[i];
         const auto& file = files[job.fileIdx];
 
-        std::cout << "[任务 " << (i + 1) << "] ";
+        std::cout << "[Task " << (i + 1) << "] ";
         if (job.isATFX) {
             std::cout << "ATFX | " << file.path
-                << " | 通道." << file.channels[job.channelIdx].channelName;
+                << " | Channel." << file.channels[job.channelIdx].channelName;
         }
         else if (IsHdfExt(file.ext)) {
             std::cout << "HDF | " << file.path
-                << " | 通道." << file.channels[job.channelIdx].channelName;
+                << " | Channel." << file.channels[job.channelIdx].channelName;
         }
         else {
             std::cout << "WAV | " << file.path;
         }
-        std::cout << " | 模式=" << ModeToText(job.mode) << "\n";
+        std::cout << " | Mode=" << ModeToText(job.mode) << "\n";
 
         if (!r.ok) {
-            std::cout << "  [状态] 失败: " << r.message << "\n";
+            std::cout << "  [Status] Failed: " << r.message << "\n";
         }
         else {
             if (!r.levelVsTimeCsvPath.empty()) {
-                std::cout << "  [结果] Level vs Time CSV: " << r.levelVsTimeCsvPath << "\n";
+                std::cout << "  [Result] Level vs Time CSV: " << r.levelVsTimeCsvPath << "\n";
                 std::cout << std::fixed << std::setprecision(3);
-                std::cout << "  [最大级值] " << r.peak.mag << " dB\n";
+                std::cout << "  [Max Level] " << r.peak.mag << " dB\n";
             }
             else if (std::abs(r.peak.mag) > 1e-12) {
                 std::cout << std::fixed << std::setprecision(3);
-                std::cout << "  [峰值] 频率=" << r.peak.freq << " Hz"
-                    << " | 幅值=" << r.peak.mag << "\n";
+                std::cout << "  [Peak] Frequency=" << r.peak.freq << " Hz"
+                    << " | Magnitude=" << r.peak.mag << "\n";
             }
             else {
-                std::cout << "  [峰值] 未计算(无有效幅值)\n";
+                std::cout << "  [Peak] Not computed (no valid magnitude)\n";
             }
             success++;
         }
@@ -88,6 +92,11 @@ static void PrintResults(
 }
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+
     std::vector<std::string> inputPaths;
     std::vector<FileItem> files;
     std::vector<Job> jobs;
@@ -96,14 +105,14 @@ int main(int argc, char* argv[]) {
     ReportWriter reporter;
     FFT11Engine engine;
 
-    std::cout << "======= FFT峰值校准模式 + 引擎V2 =======\n";
+    std::cout << "======= FFT Peak Calibration Mode + Engine V2 =======\n";
 
     const bool noUiMode = (argc >= 2 && std::string(argv[1]) == "--no-ui");
     const bool coreApiTestMode = (argc >= 2 && std::string(argv[1]) == "--core-api-test");
 
     if (coreApiTestMode) {
         if (argc < 4) {
-            std::cerr << "[错误] --core-api-test 模式需要至少两个参数：<filePath> <outputDir>\n";
+            std::cerr << "[Error] --core-api-test mode requires: <filePath> <outputDir>\n";
             return 1;
         }
 
@@ -142,7 +151,7 @@ int main(int argc, char* argv[]) {
 
     if (noUiMode) {
         if (argc < 3) {
-            std::cerr << "[错误] --no-ui 模式至少需要一个文件路径\n";
+            std::cerr << "[Error] --no-ui mode requires at least one file path\n";
             return 1;
         }
 
@@ -167,7 +176,7 @@ int main(int argc, char* argv[]) {
 
         auto built = TaskBuilder::BuildFromRequest(mapped.buildReq);
         if (!built.ok) {
-            std::cerr << "[错误] TaskBuilder 失败: " << built.message << "\n";
+            std::cerr << "[Error] TaskBuilder failed: " << built.message << "\n";
             return 1;
         }
 
@@ -187,28 +196,28 @@ int main(int argc, char* argv[]) {
         );
 
         PrintResults(runRet.results, jobs, files, reporter);
-        std::cout << "[完成] --no-ui 模式执行完毕\n";
+        std::cout << "[Done] --no-ui mode finished\n";
         return 0;
     }
 
     if (!planner.CollectInputPaths(inputPaths)) {
-        std::cerr << "[错误] 未获取文件路径\n";
+        std::cerr << "[Error] No input file paths were provided\n";
         return 1;
     }
     if (!planner.BuildFileItems(inputPaths, files)) {
-        std::cerr << "[错误] 构建文件列表失败\n";
+        std::cerr << "[Error] Failed to build file list\n";
         return 1;
     }
     if (!planner.SelectFiles(files)) {
-        std::cerr << "[错误] 文件选择失败\n";
+        std::cerr << "[Error] File selection failed\n";
         return 1;
     }
     if (!planner.LoadAndSelectChannels(files)) {
-        std::cerr << "[错误] 通道加载/选择失败\n";
+        std::cerr << "[Error] Channel load/selection failed\n";
         return 1;
     }
     if (!planner.ConfigureParamsAndBuildJobs(files, jobs)) {
-        std::cerr << "[错误] 参数配置与任务构建失败\n";
+        std::cerr << "[Error] Parameter configuration or job build failed\n";
         return 1;
     }
 
@@ -219,7 +228,7 @@ int main(int argc, char* argv[]) {
         unsigned int hw = std::thread::hardware_concurrency();
         if (hw == 0) hw = 4;
 
-        std::cout << "指定线程数=自动，默认" << hw << "个: ";
+        std::cout << "Thread count (auto, default " << hw << "): ";
         std::string s;
         std::getline(std::cin, s);
         s = trim_copy(s);
@@ -229,11 +238,11 @@ int main(int argc, char* argv[]) {
                 if (v > 0) cfg.maxThreads = v;
             }
             catch (...) {
-                std::cout << "[提示] 线程数无效，使用自动值\n";
+                std::cout << "[Info] Invalid thread count, using auto\n";
             }
         }
 
-        std::cout << "失败重试次数=1次: ";
+        std::cout << "Retry count on failure (default 1): ";
         std::getline(std::cin, s);
         s = trim_copy(s);
         if (!s.empty()) {
@@ -244,7 +253,7 @@ int main(int argc, char* argv[]) {
             catch (...) {}
         }
 
-        std::cout << "是否允许取消? (y/n, 默认y): ";
+        std::cout << "Allow cancellation? (y/n, default y): ";
         std::getline(std::cin, s);
         s = trim_copy(s);
         std::transform(s.begin(), s.end(), s.begin(), ::tolower);
@@ -263,6 +272,6 @@ int main(int argc, char* argv[]) {
 
     PrintResults(runRet.results, jobs, files, reporter);
 
-    std::cout << "[完成] 程序执行完毕\n";
+    std::cout << "[Done] Program finished\n";
     return 0;
 }
