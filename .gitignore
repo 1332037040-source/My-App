@@ -1,0 +1,28 @@
+# Visual Studio
+.vs/
+bin/
+obj/
+*.user
+*.suo
+out/
+build/
+x64/
+x86/
+Debug/
+Release/
+
+# 大数据文件
+*.atfbin
+*.atfx
+*.wav
+*.tdms
+*.mat
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+.idea/
+
+# 其他
+*.log
