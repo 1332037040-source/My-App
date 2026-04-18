@@ -29,6 +29,13 @@ namespace {
         return s;
     }
 
+    static size_t find_channel_index_by_name(const std::vector<ATFXChannelInfo>& channels, const std::string& channelName) {
+        for (size_t i = 0; i < channels.size(); ++i) {
+            if (channels[i].channelName == channelName) return i;
+        }
+        return channels.size();
+    }
+
     static std::vector<size_t> parse_indices_csv_1based_safe(const std::string& raw, size_t maxCount) {
         std::set<size_t> uniq;
         if (maxCount == 0) return {};
@@ -484,6 +491,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     }
 
     std::map<size_t, std::string> fileRpmChannelName;
+    std::map<size_t, size_t> fileRpmChannelIdx;
     double rpmBinStep = 50.0;
     if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
         std::cout << "\n[FFT vs rpm] Enter rpm bin step (default 50): ";
@@ -519,6 +527,8 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
 
             if (rpmSel.empty() && !autoRpmName.empty()) {
                 fileRpmChannelName[fi] = autoRpmName;
+                const size_t autoIdx = find_channel_index_by_name(files[fi].channels, autoRpmName);
+                if (autoIdx < files[fi].channels.size()) fileRpmChannelIdx[fi] = autoIdx;
                 continue;
             }
 
@@ -528,6 +538,8 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 if (!autoRpmName.empty()) {
                     std::cerr << "[Warn] Invalid rpm selection, using auto-detected channel: " << autoRpmName << "\n";
                     fileRpmChannelName[fi] = autoRpmName;
+                    const size_t autoIdx = find_channel_index_by_name(files[fi].channels, autoRpmName);
+                    if (autoIdx < files[fi].channels.size()) fileRpmChannelIdx[fi] = autoIdx;
                     continue;
                 }
                 std::cerr << "[Error] No rpm channel selected, skipping file: " << files[fi].path << "\n";
@@ -543,6 +555,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             }
 
             fileRpmChannelName[fi] = files[fi].channels[rpmCi].channelName;
+            fileRpmChannelIdx[fi] = rpmCi;
         }
     }
 
@@ -712,6 +725,8 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                     if (rpmName.empty()) rpmName = HdfChannelUtils::DetectRpmChannelName(files[fi].channels);
                     if (rpmName.empty()) continue;
                     j.rpmChannelName = rpmName;
+                    auto itRpmIdx = fileRpmChannelIdx.find(fi);
+                    if (itRpmIdx != fileRpmChannelIdx.end()) j.rpmChannelIdx = itRpmIdx->second;
                     j.rpmBinStep = rpmBinStep;
                 }
 
@@ -758,6 +773,8 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                     auto itRpm = fileRpmChannelName.find(fi);
                     if (itRpm == fileRpmChannelName.end() || itRpm->second.empty()) continue;
                     j.rpmChannelName = itRpm->second;
+                    auto itRpmIdx = fileRpmChannelIdx.find(fi);
+                    if (itRpmIdx != fileRpmChannelIdx.end()) j.rpmChannelIdx = itRpmIdx->second;
                     j.rpmBinStep = rpmBinStep;
                 }
 

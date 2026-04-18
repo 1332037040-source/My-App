@@ -19,6 +19,13 @@ static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     return a;
 }
 
+static size_t FindChannelIndexByName(const std::vector<ATFXChannelInfo>& channels, const std::string& channelName) {
+    for (size_t i = 0; i < channels.size(); ++i) {
+        if (channels[i].channelName == channelName) return i;
+    }
+    return channels.size();
+}
+
 BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
     BuildResponse out;
     out.ok = false;
@@ -139,8 +146,11 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
                     if (fi >= req.rpmChannelNameByFile.size()) continue;
                     const std::string& rpmName = req.rpmChannelNameByFile[fi];
                     if (rpmName.empty()) continue;
+                    const size_t rpmIdx = FindChannelIndexByName(f.channels, rpmName);
+                    if (rpmIdx >= f.channels.size()) continue;
 
                     j.rpmChannelName = rpmName;
+                    j.rpmChannelIdx = rpmIdx;
                     j.rpmBinStep = (req.rpmBinStep > 0.0 ? req.rpmBinStep : 50.0);
                 }
 
@@ -172,8 +182,14 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
                         missingHdfRpmChannel = true;
                         continue;
                     }
+                    const size_t rpmIdx = FindChannelIndexByName(f.channels, rpmName);
+                    if (rpmIdx >= f.channels.size()) {
+                        missingHdfRpmChannel = true;
+                        continue;
+                    }
 
                     j.rpmChannelName = rpmName;
+                    j.rpmChannelIdx = rpmIdx;
                     j.rpmBinStep = (req.rpmBinStep > 0.0 ? req.rpmBinStep : 50.0);
                 }
 

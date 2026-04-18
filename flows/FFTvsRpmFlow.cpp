@@ -42,7 +42,10 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
         return r;
     }
 
-    const size_t rpmChannelIdx = FindChannelIndexByName(file, job.rpmChannelName);
+    size_t rpmChannelIdx = job.rpmChannelIdx;
+    if (rpmChannelIdx >= file.channels.size()) {
+        rpmChannelIdx = FindChannelIndexByName(file, job.rpmChannelName);
+    }
     if (rpmChannelIdx >= file.channels.size()) {
         r.message = "rpm通道不存在: " + job.rpmChannelName;
         return r;
