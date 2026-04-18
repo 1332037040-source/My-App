@@ -37,7 +37,7 @@ set(CORE_SOURCES
     planner/TaskBuilder.cpp
 
     services/DataReaderService.cpp
-    services/SpectrumService.cpp
+    services/spectrumService.cpp
     services/ExportService.cpp
 
     flows/FFTFlow.cpp
