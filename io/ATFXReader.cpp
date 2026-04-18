@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <cctype>
+#include <cstring>
 #include <unordered_map>
 #include <unordered_set>
 

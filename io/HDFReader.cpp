@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <limits>
 #include <cstring>
+#include <cstdint>
 #include <cmath>
 #include <type_traits>
 
