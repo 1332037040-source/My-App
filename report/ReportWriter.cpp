@@ -1,13 +1,8 @@
-﻿#include "ReportWriter.h"
+#include "ReportWriter.h"
+#include "../domain/FileTypeUtils.h"
 #include <iostream>
 #include <iomanip>
 #include <cmath>
-
-namespace {
-    bool IsHdfExt(const std::string& ext) {
-        return ext == "hdf" || ext == "h5" || ext == "hdf5";
-    }
-}
 
 void ReportWriter::PrintPlan(const std::vector<Job>& jobs, const std::vector<FileItem>& files) {
     std::cout << "\n================ 执行计划 ================\n";

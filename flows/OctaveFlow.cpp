@@ -5,16 +5,11 @@
 #include "../services/ExportService.h"
 #include "../features/octave_band/OctaveAnalyzer.h"
 #include "../core/Utils.h"
+#include "../domain/FileTypeUtils.h"
 
 #include <cmath>
 #include <vector>
 #include <string>
-
-namespace {
-    bool IsHdfExt(const std::string& ext) {
-        return ext == "hdf" || ext == "h5" || ext == "hdf5";
-    }
-}
 
 JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
 {

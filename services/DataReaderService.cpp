@@ -1,11 +1,6 @@
 #include "DataReaderService.h"
 #include "../io/WAVReader.h"
-
-namespace {
-    bool IsHdfExt(const std::string& ext) {
-        return ext == "hdf" || ext == "h5" || ext == "hdf5";
-    }
-}
+#include "../domain/FileTypeUtils.h"
 
 bool DataReaderService::ReadSignal(const Job& job,
     const FileItem& file,

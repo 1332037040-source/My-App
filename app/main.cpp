@@ -10,6 +10,7 @@
 #include "planner/TaskBuilder.h"
 #include "report/ReportWriter.h"
 #include "domain/ParseUtils.h"
+#include "domain/FileTypeUtils.h"
 #include "engine/Engine.h"
 
 #include "app/RunRequest.h"
@@ -27,11 +28,6 @@ static const char* ModeToText(AnalysisMode mode)
     case AnalysisMode::LEVEL_VS_TIME: return "LEVEL_VS_TIME";
     default: return "UNKNOWN";
     }
-}
-
-static bool IsHdfExt(const std::string& ext)
-{
-    return ext == "hdf" || ext == "h5" || ext == "hdf5";
 }
 
 static void PrintResults(
@@ -57,7 +53,7 @@ static void PrintResults(
         }
         else if (IsHdfExt(file.ext)) {
             std::cout << "HDF | " << file.path
-                << " | 通��." << file.channels[job.channelIdx].channelName;
+                << " | 通道." << file.channels[job.channelIdx].channelName;
         }
         else {
             std::cout << "WAV | " << file.path;

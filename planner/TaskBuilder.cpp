@@ -1,5 +1,6 @@
-﻿#include "TaskBuilder.h"
+#include "TaskBuilder.h"
 #include "../domain/ParseUtils.h"
+#include "../domain/FileTypeUtils.h"
 #include "io/ATFXReader.h"
 #include "io/HDFReader.h"
 
@@ -19,14 +20,11 @@ static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     return a;
 }
 
-static bool IsHdfExt(const std::string& ext) {
-    return ext == "hdf" || ext == "h5" || ext == "hdf5";
-}
-
-static std::string ToLowerCopy(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
+static std::string ToLowerCopy(const std::string& s) {
+    std::string out = s;
+    std::transform(out.begin(), out.end(), out.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
+    return out;
 }
 
 static bool ContainsTokenInsensitive(const std::string& text, const std::string& token) {
@@ -49,6 +47,7 @@ static std::string DetectRpmChannelNameFromHdf(const std::vector<ATFXChannelInfo
     }
     return "";
 }
+
 
 BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
     BuildResponse out;

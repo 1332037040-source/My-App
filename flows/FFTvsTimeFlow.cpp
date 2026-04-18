@@ -4,14 +4,9 @@
 #include "../services/ExportService.h"
 #include "../features/fft_vs_time/FFTvsTimeAnalyzer.h"
 #include "../core/Utils.h"
+#include "../domain/FileTypeUtils.h"
 
 #include <string>
-
-namespace {
-    bool IsHdfExt(const std::string& ext) {
-        return ext == "hdf" || ext == "h5" || ext == "hdf5";
-    }
-}
 
 JobResult FFTvsTimeFlow::Run(const Job& job, const FileItem& file)
 {
