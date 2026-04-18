@@ -64,7 +64,7 @@ struct Job {
     AnalysisMode mode = AnalysisMode::FFT;
 
     std::string rpmChannelName;
-    size_t rpmChannelIdx = std::numeric_limits<size_t>::max();
+    size_t rpmChannelIdx = (std::numeric_limits<size_t>::max)();
     double rpmBinStep = 50.0;
 };
 
