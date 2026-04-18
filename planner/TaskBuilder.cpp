@@ -1,12 +1,11 @@
 #include "TaskBuilder.h"
+#include "../domain/HdfChannelUtils.h"
 #include "../domain/ParseUtils.h"
 #include "../domain/FileTypeUtils.h"
 #include "io/ATFXReader.h"
 #include "io/HDFReader.h"
 
 #include <set>
-#include <algorithm>
-#include <cctype>
 
 static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     ATFXChannelInfo a;
@@ -18,34 +17,6 @@ static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     a.unit = h.unit;
     a.dof = h.dof.empty() ? "-" : h.dof;
     return a;
-}
-
-static std::string ToLowerCopy(const std::string& s) {
-    std::string out = s;
-    std::transform(out.begin(), out.end(), out.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return out;
-}
-
-static bool ContainsTokenInsensitive(const std::string& text, const std::string& token) {
-    const std::string lowText = ToLowerCopy(text);
-    const std::string lowToken = ToLowerCopy(token);
-    return lowText.find(lowToken) != std::string::npos;
-}
-
-static std::string DetectRpmChannelNameFromHdf(const std::vector<ATFXChannelInfo>& channels) {
-    for (const auto& ch : channels) {
-        if (ContainsTokenInsensitive(ch.unit, "rpm")) {
-            return ch.channelName;
-        }
-    }
-    for (const auto& ch : channels) {
-        if (ContainsTokenInsensitive(ch.channelName, "rpm") ||
-            ContainsTokenInsensitive(ch.channelLabel, "rpm")) {
-            return ch.channelName;
-        }
-    }
-    return "";
 }
 
 
@@ -196,7 +167,7 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
                         rpmName = req.rpmChannelNameByFile[fi];
                     }
                     if (rpmName.empty()) {
-                        rpmName = DetectRpmChannelNameFromHdf(f.channels);
+                        rpmName = HdfChannelUtils::DetectRpmChannelName(f.channels);
                     }
                     if (rpmName.empty()) {
                         missingHdfRpmChannel = true;

@@ -1,4 +1,5 @@
 #include "TaskPlanner.h"
+#include "../domain/HdfChannelUtils.h"
 #include "../domain/ParseUtils.h"
 #include "../domain/FileTypeUtils.h"
 #include "io/ATFXReader.h"
@@ -26,25 +27,6 @@ namespace {
         std::transform(s.begin(), s.end(), s.begin(),
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         return s;
-    }
-
-    static bool contains_token_insensitive(const std::string& text, const std::string& token) {
-        return lower_copy(text).find(lower_copy(token)) != std::string::npos;
-    }
-
-    static std::string DetectRpmChannelNameFromHdf(const std::vector<ATFXChannelInfo>& channels) {
-        for (const auto& ch : channels) {
-            if (contains_token_insensitive(ch.unit, "rpm")) {
-                return ch.channelName;
-            }
-        }
-        for (const auto& ch : channels) {
-            if (contains_token_insensitive(ch.channelName, "rpm") ||
-                contains_token_insensitive(ch.channelLabel, "rpm")) {
-                return ch.channelName;
-            }
-        }
-        return "";
     }
 
     static std::vector<size_t> parse_indices_csv_1based_safe(const std::string& raw, size_t maxCount) {
@@ -521,7 +503,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             if (files[fi].channels.empty()) continue;
 
             const std::string autoRpmName = IsHdfExt(files[fi].ext)
-                ? DetectRpmChannelNameFromHdf(files[fi].channels)
+                ? HdfChannelUtils::DetectRpmChannelName(files[fi].channels)
                 : std::string{};
 
             std::cout << "\n[FFT vs rpm] File[" << (fi + 1) << "] " << files[fi].path << "\n";
@@ -727,7 +709,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                     std::string rpmName;
                     auto itRpm = fileRpmChannelName.find(fi);
                     if (itRpm != fileRpmChannelName.end()) rpmName = itRpm->second;
-                    if (rpmName.empty()) rpmName = DetectRpmChannelNameFromHdf(files[fi].channels);
+                    if (rpmName.empty()) rpmName = HdfChannelUtils::DetectRpmChannelName(files[fi].channels);
                     if (rpmName.empty()) continue;
                     j.rpmChannelName = rpmName;
                     j.rpmBinStep = rpmBinStep;
