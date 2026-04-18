@@ -71,17 +71,14 @@ bool DataReaderService::ReadHDF(const Job& job,
     std::string& err) const
 {
     FFT11_HDFReader hdf;
-    std::vector<HDFChannelInfo> hdfChannels;
-    double fsMeta = 0.0;
-
-    if (!hdf.GetAllChannels(file.path, hdfChannels, fsMeta) || hdfChannels.empty()) {
-        err = "读取HDF通道列表失败";
+    if (file.channels.empty()) {
+        err = "HDF channel list is empty";
         return false;
     }
 
     size_t chIdx = job.channelIdx;
-    if (chIdx >= hdfChannels.size()) chIdx = 0;
-    const auto& ch = hdfChannels[chIdx];
+    if (chIdx >= file.channels.size()) chIdx = 0;
+    const auto& ch = file.channels[chIdx];
 
     std::vector<float> signal;
     double fs = 0.0;
