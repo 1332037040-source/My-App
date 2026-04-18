@@ -83,8 +83,12 @@ bool DataReaderService::ReadHDF(const Job& job,
     std::vector<float> signal;
     double fs = 0.0;
     if (!hdf.ReadChannelData(file.path, ch.channelName, signal, fs)) {
-        err = "读取HDF通道失败";
-        return false;
+        signal.clear();
+        fs = 0.0;
+        if (!hdf.ReadChannelDataByIndex(file.path, chIdx, signal, fs)) {
+            err = "读取HDF通道失败";
+            return false;
+        }
     }
 
     if (signal.empty()) {

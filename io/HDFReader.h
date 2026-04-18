@@ -24,4 +24,9 @@ public:
         const std::string& channelName,
         std::vector<float>& outData,
         double& sampleRate);
+
+    bool ReadChannelDataByIndex(const std::string& hdfPath,
+        size_t channelIndex,
+        std::vector<float>& outData,
+        double& sampleRate);
 };

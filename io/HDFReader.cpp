@@ -282,6 +282,191 @@ namespace {
         return m.chOrderRaw.find('*') != std::string::npos;
     }
 
+    static bool ReadChannelDataImpl(const std::string& hdfPath,
+        const std::string* channelName,
+        const size_t* channelIndex,
+        std::vector<float>& outData,
+        double& sampleRate) {
+        outData.clear();
+        sampleRate = 0.0;
+
+        HDFMeta meta;
+        std::string err;
+        if (!ParseHeader(hdfPath, meta, err)) {
+            std::cerr << "[错误] HDF头解析失败: " << err << " | " << hdfPath << std::endl;
+            return false;
+        }
+
+        if (meta.nChannels == 0 || meta.nScans == 0) {
+            std::cerr << "[错误] HDF元数据无效: nChannels=" << meta.nChannels
+                << ", nScans=" << meta.nScans << std::endl;
+            return false;
+        }
+
+        if (IsTimeKind(meta) && meta.deltaValue > 0.0) sampleRate = 1.0 / meta.deltaValue;
+        else sampleRate = 0.0;
+
+        size_t targetCh = std::numeric_limits<size_t>::max();
+        if (channelIndex != nullptr) {
+            if (*channelIndex >= meta.nChannels) {
+                std::cerr << "[错误] 指定通道索引越界: " << *channelIndex
+                    << " >= " << meta.nChannels << std::endl;
+                return false;
+            }
+            targetCh = *channelIndex;
+        }
+        else if (channelName != nullptr) {
+            for (size_t i = 0; i < meta.channels.size(); ++i) {
+                if (meta.channels[i].name == *channelName) {
+                    targetCh = i;
+                    break;
+                }
+            }
+            if (targetCh == std::numeric_limits<size_t>::max()) {
+                for (size_t i = 0; i < meta.nChannels; ++i) {
+                    if (("Channel " + std::to_string(i + 1)) == *channelName) {
+                        targetCh = i;
+                        break;
+                    }
+                }
+            }
+            if (targetCh == std::numeric_limits<size_t>::max()) {
+                std::cerr << "[错误] 未找到指定通道: " << *channelName << std::endl;
+                return false;
+            }
+        }
+        else {
+            std::cerr << "[错误] 未提供HDF通道名或通道索引" << std::endl;
+            return false;
+        }
+
+        std::ifstream fin(hdfPath, std::ios::binary);
+        if (!fin) {
+            std::cerr << "[错误] 无法打开HDF文件: " << hdfPath << std::endl;
+            return false;
+        }
+
+        fin.seekg(0, std::ios::end);
+        std::streamoff fsize = fin.tellg();
+        if (fsize <= static_cast<std::streamoff>(meta.startOfData)) {
+            std::cerr << "[错误] 文件长度小于start_of_data" << std::endl;
+            return false;
+        }
+
+        size_t binSize = static_cast<size_t>(fsize - static_cast<std::streamoff>(meta.startOfData));
+        std::vector<unsigned char> raw(binSize);
+        fin.seekg(static_cast<std::streamoff>(meta.startOfData), std::ios::beg);
+        fin.read(reinterpret_cast<char*>(raw.data()), static_cast<std::streamsize>(binSize));
+        if (!fin) {
+            std::cerr << "[错误] 二进制区读取失败" << std::endl;
+            return false;
+        }
+
+        const bool littleFile = IsLittleEndianFile(meta);
+        const bool isComplex = IsComplexKind(meta);
+        const bool blockInterleave = HasBlockInterleave(meta);
+
+        if (!blockInterleave) {
+            if (!isComplex) {
+                const size_t expectedBytes = meta.nScans * meta.nChannels * sizeof(float);
+                if (raw.size() < expectedBytes) {
+                    std::cerr << "[错误] 时域数据长度不足, expected=" << expectedBytes
+                        << ", actual=" << raw.size() << std::endl;
+                    return false;
+                }
+
+                outData.resize(meta.nScans);
+                for (size_t i = 0; i < meta.nScans; ++i) {
+                    size_t idx = i * meta.nChannels + targetCh;
+                    const unsigned char* p = raw.data() + idx * sizeof(float);
+                    outData[i] = ReadF32(p, littleFile);
+                }
+                return true;
+            }
+
+            const size_t expectedBytes = meta.nScans * meta.nChannels * sizeof(float) * 2;
+            if (raw.size() < expectedBytes) {
+                std::cerr << "[错误] 复数数据长度不足, expected=" << expectedBytes
+                    << ", actual=" << raw.size() << std::endl;
+                return false;
+            }
+
+            outData.resize(meta.nScans);
+            for (size_t i = 0; i < meta.nScans; ++i) {
+                size_t cidx = i * meta.nChannels + targetCh;
+                const unsigned char* p = raw.data() + cidx * sizeof(float) * 2;
+                float re = ReadF32(p, littleFile);
+                float im = ReadF32(p + sizeof(float), littleFile);
+                outData[i] = std::sqrt(re * re + im * im);
+            }
+            return true;
+        }
+
+        std::vector<ChOrderToken> tokens;
+        if (!ParseChOrderTokens(meta.chOrderRaw, tokens)) {
+            std::cerr << "[错误] ch order解析失败: " << meta.chOrderRaw << std::endl;
+            return false;
+        }
+
+        size_t targetPerBlock = 0;
+        size_t samplesPerBlockAll = 0;
+        for (const auto& t : tokens) {
+            samplesPerBlockAll += t.repeat;
+            if (t.channel >= 1 && t.channel <= meta.nChannels && (t.channel - 1) == targetCh) {
+                targetPerBlock += t.repeat;
+            }
+        }
+        if (samplesPerBlockAll == 0 || targetPerBlock == 0) {
+            std::cerr << "[错误] 块交织配置无效, ch_order=" << meta.chOrderRaw << std::endl;
+            return false;
+        }
+
+        const size_t bytesPerSample = isComplex ? sizeof(float) * 2 : sizeof(float);
+        const size_t bytesPerBlock = samplesPerBlockAll * bytesPerSample;
+        if (bytesPerBlock == 0 || raw.size() < bytesPerBlock) {
+            std::cerr << "[错误] 块交织数据长度不足" << std::endl;
+            return false;
+        }
+
+        const size_t nBlocks = raw.size() / bytesPerBlock;
+        outData.clear();
+        outData.reserve(nBlocks * targetPerBlock);
+
+        for (size_t b = 0; b < nBlocks; ++b) {
+            const unsigned char* blockBase = raw.data() + b * bytesPerBlock;
+            size_t offsetSamples = 0;
+
+            for (const auto& t : tokens) {
+                size_t ch0 = (t.channel >= 1) ? (t.channel - 1) : std::numeric_limits<size_t>::max();
+                for (size_t r = 0; r < t.repeat; ++r) {
+                    if (ch0 == targetCh) {
+                        const unsigned char* p = blockBase + (offsetSamples + r) * bytesPerSample;
+                        if (!isComplex) {
+                            outData.push_back(ReadF32(p, littleFile));
+                        }
+                        else {
+                            float re = ReadF32(p, littleFile);
+                            float im = ReadF32(p + sizeof(float), littleFile);
+                            outData.push_back(std::sqrt(re * re + im * im));
+                        }
+                    }
+                }
+                offsetSamples += t.repeat;
+            }
+        }
+
+        if (outData.empty()) {
+            std::cerr << "[错误] 块交织解析后无目标通道数据" << std::endl;
+            return false;
+        }
+
+        if (meta.nScans > 0 && outData.size() > meta.nScans) {
+            outData.resize(meta.nScans);
+        }
+
+        return true;
+    }
+
 } // namespace
 
 bool FFT11_HDFReader::GetAllChannels(const std::string& hdfPath,
@@ -320,171 +505,12 @@ bool FFT11_HDFReader::ReadChannelData(const std::string& hdfPath,
     const std::string& channelName,
     std::vector<float>& outData,
     double& sampleRate) {
-    outData.clear();
-    sampleRate = 0.0;
+    return ReadChannelDataImpl(hdfPath, &channelName, nullptr, outData, sampleRate);
+}
 
-    HDFMeta meta;
-    std::string err;
-    if (!ParseHeader(hdfPath, meta, err)) {
-        std::cerr << "[错误] HDF头解析失败: " << err << " | " << hdfPath << std::endl;
-        return false;
-    }
-
-    if (meta.nChannels == 0 || meta.nScans == 0) {
-        std::cerr << "[错误] HDF元数据无效: nChannels=" << meta.nChannels
-            << ", nScans=" << meta.nScans << std::endl;
-        return false;
-    }
-
-    if (IsTimeKind(meta) && meta.deltaValue > 0.0) sampleRate = 1.0 / meta.deltaValue;
-    else sampleRate = 0.0;
-
-    // 找通道
-    size_t targetCh = std::numeric_limits<size_t>::max();
-    for (size_t i = 0; i < meta.channels.size(); ++i) {
-        if (meta.channels[i].name == channelName) {
-            targetCh = i;
-            break;
-        }
-    }
-    if (targetCh == std::numeric_limits<size_t>::max()) {
-        for (size_t i = 0; i < meta.nChannels; ++i) {
-            if (("Channel " + std::to_string(i + 1)) == channelName) {
-                targetCh = i;
-                break;
-            }
-        }
-    }
-    if (targetCh == std::numeric_limits<size_t>::max()) {
-        std::cerr << "[错误] 未找到指定通道: " << channelName << std::endl;
-        return false;
-    }
-
-    std::ifstream fin(hdfPath, std::ios::binary);
-    if (!fin) {
-        std::cerr << "[错误] 无法打开HDF文件: " << hdfPath << std::endl;
-        return false;
-    }
-
-    fin.seekg(0, std::ios::end);
-    std::streamoff fsize = fin.tellg();
-    if (fsize <= static_cast<std::streamoff>(meta.startOfData)) {
-        std::cerr << "[错误] 文件长度小于start_of_data" << std::endl;
-        return false;
-    }
-
-    size_t binSize = static_cast<size_t>(fsize - static_cast<std::streamoff>(meta.startOfData));
-    std::vector<unsigned char> raw(binSize);
-    fin.seekg(static_cast<std::streamoff>(meta.startOfData), std::ios::beg);
-    fin.read(reinterpret_cast<char*>(raw.data()), static_cast<std::streamsize>(binSize));
-    if (!fin) {
-        std::cerr << "[错误] 二进制区读取失败" << std::endl;
-        return false;
-    }
-
-    const bool littleFile = IsLittleEndianFile(meta);
-    const bool isComplex = IsComplexKind(meta);
-    const bool blockInterleave = HasBlockInterleave(meta);
-
-    if (!blockInterleave) {
-        if (!isComplex) {
-            const size_t expectedBytes = meta.nScans * meta.nChannels * sizeof(float);
-            if (raw.size() < expectedBytes) {
-                std::cerr << "[错误] 时域数据长度不足, expected=" << expectedBytes
-                    << ", actual=" << raw.size() << std::endl;
-                return false;
-            }
-
-            outData.resize(meta.nScans);
-            for (size_t i = 0; i < meta.nScans; ++i) {
-                size_t idx = i * meta.nChannels + targetCh;
-                const unsigned char* p = raw.data() + idx * sizeof(float);
-                outData[i] = ReadF32(p, littleFile);
-            }
-            return true;
-        }
-        else {
-            const size_t expectedBytes = meta.nScans * meta.nChannels * sizeof(float) * 2;
-            if (raw.size() < expectedBytes) {
-                std::cerr << "[错误] 复数数据长度不足, expected=" << expectedBytes
-                    << ", actual=" << raw.size() << std::endl;
-                return false;
-            }
-
-            outData.resize(meta.nScans);
-            for (size_t i = 0; i < meta.nScans; ++i) {
-                size_t cidx = i * meta.nChannels + targetCh;
-                const unsigned char* p = raw.data() + cidx * sizeof(float) * 2;
-                float re = ReadF32(p, littleFile);
-                float im = ReadF32(p + sizeof(float), littleFile);
-                outData[i] = std::sqrt(re * re + im * im); // 输出幅值
-            }
-            return true;
-        }
-    }
-
-    // 块交织
-    std::vector<ChOrderToken> tokens;
-    if (!ParseChOrderTokens(meta.chOrderRaw, tokens)) {
-        std::cerr << "[错误] ch order解析失败: " << meta.chOrderRaw << std::endl;
-        return false;
-    }
-
-    size_t targetPerBlock = 0;
-    size_t samplesPerBlockAll = 0;
-    for (const auto& t : tokens) {
-        samplesPerBlockAll += t.repeat;
-        if (t.channel >= 1 && t.channel <= meta.nChannels && (t.channel - 1) == targetCh) {
-            targetPerBlock += t.repeat;
-        }
-    }
-    if (samplesPerBlockAll == 0 || targetPerBlock == 0) {
-        std::cerr << "[错误] 块交织配置无效, ch_order=" << meta.chOrderRaw << std::endl;
-        return false;
-    }
-
-    const size_t bytesPerSample = isComplex ? sizeof(float) * 2 : sizeof(float);
-    const size_t bytesPerBlock = samplesPerBlockAll * bytesPerSample;
-    if (bytesPerBlock == 0 || raw.size() < bytesPerBlock) {
-        std::cerr << "[错误] 块交织数据长度不足" << std::endl;
-        return false;
-    }
-
-    const size_t nBlocks = raw.size() / bytesPerBlock;
-    outData.clear();
-    outData.reserve(nBlocks * targetPerBlock);
-
-    for (size_t b = 0; b < nBlocks; ++b) {
-        const unsigned char* blockBase = raw.data() + b * bytesPerBlock;
-        size_t offsetSamples = 0;
-
-        for (const auto& t : tokens) {
-            size_t ch0 = (t.channel >= 1) ? (t.channel - 1) : std::numeric_limits<size_t>::max();
-            for (size_t r = 0; r < t.repeat; ++r) {
-                if (ch0 == targetCh) {
-                    const unsigned char* p = blockBase + (offsetSamples + r) * bytesPerSample;
-                    if (!isComplex) {
-                        outData.push_back(ReadF32(p, littleFile));
-                    }
-                    else {
-                        float re = ReadF32(p, littleFile);
-                        float im = ReadF32(p + sizeof(float), littleFile);
-                        outData.push_back(std::sqrt(re * re + im * im));
-                    }
-                }
-            }
-            offsetSamples += t.repeat;
-        }
-    }
-
-    if (outData.empty()) {
-        std::cerr << "[错误] 块交织解析后无目标通道数据" << std::endl;
-        return false;
-    }
-
-    if (meta.nScans > 0 && outData.size() > meta.nScans) {
-        outData.resize(meta.nScans);
-    }
-
-    return true;
+bool FFT11_HDFReader::ReadChannelDataByIndex(const std::string& hdfPath,
+    size_t channelIndex,
+    std::vector<float>& outData,
+    double& sampleRate) {
+    return ReadChannelDataImpl(hdfPath, nullptr, &channelIndex, outData, sampleRate);
 }
