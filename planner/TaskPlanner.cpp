@@ -428,6 +428,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
 
 bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std::vector<Job>& jobs) {
     jobs.clear();
+    bool missingHdfRpmChannel = false;
 
     AnalysisMode selectedAnalysisMode = AnalysisMode::FFT;
     std::cout << "\nAnalysis type:\n";
@@ -770,11 +771,29 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 j.mode = selectedAnalysisMode;
 
                 if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
+                    std::string rpmName;
                     auto itRpm = fileRpmChannelName.find(fi);
-                    if (itRpm == fileRpmChannelName.end() || itRpm->second.empty()) continue;
-                    j.rpmChannelName = itRpm->second;
+                    if (itRpm != fileRpmChannelName.end()) rpmName = itRpm->second;
+                    if (rpmName.empty()) rpmName = HdfChannelUtils::DetectRpmChannelName(files[fi].channels);
+                    if (rpmName.empty()) {
+                        missingHdfRpmChannel = true;
+                        continue;
+                    }
+
+                    j.rpmChannelName = rpmName;
+
                     auto itRpmIdx = fileRpmChannelIdx.find(fi);
-                    if (itRpmIdx != fileRpmChannelIdx.end()) j.rpmChannelIdx = itRpmIdx->second;
+                    if (itRpmIdx != fileRpmChannelIdx.end()) {
+                        j.rpmChannelIdx = itRpmIdx->second;
+                    }
+                    else {
+                        const size_t rpmIdx = find_channel_index_by_name(files[fi].channels, rpmName);
+                        if (rpmIdx >= files[fi].channels.size()) {
+                            missingHdfRpmChannel = true;
+                            continue;
+                        }
+                        j.rpmChannelIdx = rpmIdx;
+                    }
                     j.rpmBinStep = rpmBinStep;
                 }
 
@@ -836,5 +855,8 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     }
 
     std::cout << "[DBG] Build jobs done: " << jobs.size() << "\n";
+    if (jobs.empty() && missingHdfRpmChannel) {
+        std::cerr << "[Error] Missing rpm channel for selected HDF/H5 file(s)\n";
+    }
     return !jobs.empty();
 }
