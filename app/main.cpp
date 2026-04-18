@@ -29,6 +29,11 @@ static const char* ModeToText(AnalysisMode mode)
     }
 }
 
+static bool IsHdfExt(const std::string& ext)
+{
+    return ext == "hdf" || ext == "h5" || ext == "hdf5";
+}
+
 static void PrintResults(
     const std::vector<JobResult>& results,
     const std::vector<Job>& jobs,
@@ -50,7 +55,7 @@ static void PrintResults(
             std::cout << "ATFX | " << file.path
                 << " | 通道." << file.channels[job.channelIdx].channelName;
         }
-        else if (file.path.find(".hdf") != std::string::npos || file.path.find(".HDF") != std::string::npos) {
+        else if (IsHdfExt(file.ext)) {
             std::cout << "HDF | " << file.path
                 << " | 通��." << file.channels[job.channelIdx].channelName;
         }

@@ -75,7 +75,7 @@ namespace
             return false;
         }
 
-        if (ext == "hdf") {
+        if (ext == "hdf" || ext == "h5" || ext == "hdf5") {
             FFT11_HDFReader reader;
             std::vector<HDFChannelInfo> channels;
             double fs = 0.0;

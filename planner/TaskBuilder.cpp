@@ -4,6 +4,8 @@
 #include "io/HDFReader.h"
 
 #include <set>
+#include <algorithm>
+#include <cctype>
 
 static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     ATFXChannelInfo a;
@@ -15,6 +17,37 @@ static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     a.unit = h.unit;
     a.dof = h.dof.empty() ? "-" : h.dof;
     return a;
+}
+
+static bool IsHdfExt(const std::string& ext) {
+    return ext == "hdf" || ext == "h5" || ext == "hdf5";
+}
+
+static std::string ToLowerCopy(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return s;
+}
+
+static bool ContainsTokenInsensitive(const std::string& text, const std::string& token) {
+    const std::string lowText = ToLowerCopy(text);
+    const std::string lowToken = ToLowerCopy(token);
+    return lowText.find(lowToken) != std::string::npos;
+}
+
+static std::string DetectRpmChannelNameFromHdf(const std::vector<ATFXChannelInfo>& channels) {
+    for (const auto& ch : channels) {
+        if (ContainsTokenInsensitive(ch.unit, "rpm")) {
+            return ch.channelName;
+        }
+    }
+    for (const auto& ch : channels) {
+        if (ContainsTokenInsensitive(ch.channelName, "rpm") ||
+            ContainsTokenInsensitive(ch.channelLabel, "rpm")) {
+            return ch.channelName;
+        }
+    }
+    return "";
 }
 
 BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
@@ -73,7 +106,7 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
         }
 
         // ---------- HDF ----------
-        else if (f.ext == "hdf") {
+        else if (IsHdfExt(f.ext)) {
             FFT11_HDFReader hdf;
             std::vector<HDFChannelInfo> hdfChannels;
             double fs = 0.0;
@@ -115,6 +148,7 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
 
     // 3) 构建 jobs
     out.jobs.clear();
+    bool missingHdfRpmChannel = false;
 
     for (size_t fi = 0; fi < out.files.size(); ++fi) {
         const auto& f = out.files[fi];
@@ -146,10 +180,7 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
         }
 
         // ---------- HDF ----------
-        else if (f.ext == "hdf") {
-            // FFT vs rpm 当前不支持 HDF
-            if (req.mode == AnalysisMode::FFT_VS_RPM) continue;
-
+        else if (IsHdfExt(f.ext)) {
             for (size_t ci : f.selectedChannels) {
                 if (ci >= f.channels.size()) continue;
 
@@ -159,6 +190,23 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
                 j.channelIdx = ci;
                 j.mode = req.mode;
                 j.params = req.fftParams;
+
+                if (req.mode == AnalysisMode::FFT_VS_RPM) {
+                    std::string rpmName;
+                    if (fi < req.rpmChannelNameByFile.size()) {
+                        rpmName = req.rpmChannelNameByFile[fi];
+                    }
+                    if (rpmName.empty()) {
+                        rpmName = DetectRpmChannelNameFromHdf(f.channels);
+                    }
+                    if (rpmName.empty()) {
+                        missingHdfRpmChannel = true;
+                        continue;
+                    }
+
+                    j.rpmChannelName = rpmName;
+                    j.rpmBinStep = (req.rpmBinStep > 0.0 ? req.rpmBinStep : 50.0);
+                }
 
                 out.jobs.push_back(j);
             }
@@ -181,7 +229,9 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
     }
 
     if (out.jobs.empty()) {
-        out.message = "no jobs built";
+        out.message = missingHdfRpmChannel
+            ? "no jobs built: missing rpm channel for hdf/h5 file"
+            : "no jobs built";
         return out;
     }
 

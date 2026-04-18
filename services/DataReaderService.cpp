@@ -1,5 +1,11 @@
-﻿#include "DataReaderService.h"
+#include "DataReaderService.h"
 #include "../io/WAVReader.h"
+
+namespace {
+    bool IsHdfExt(const std::string& ext) {
+        return ext == "hdf" || ext == "h5" || ext == "hdf5";
+    }
+}
 
 bool DataReaderService::ReadSignal(const Job& job,
     const FileItem& file,
@@ -11,13 +17,13 @@ bool DataReaderService::ReadSignal(const Job& job,
 
     // 与你现有 FFTExecutor 的判定逻辑保持一致：
     // 1) job.isATFX 优先
-    // 2) file.ext == "hdf"
+    // 2) file.ext == "hdf/h5/hdf5"
     // 3) 其他按 wav 处理
     if (job.isATFX) {
         return ReadATFX(job, file, out, err);
     }
 
-    if (file.ext == "hdf") {
+    if (IsHdfExt(file.ext)) {
         return ReadHDF(job, file, out, err);
     }
 

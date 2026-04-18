@@ -63,6 +63,10 @@ namespace {
         return std::vector<size_t>(uniq.begin(), uniq.end());
     }
 
+    static bool is_hdf_ext(const std::string& ext) {
+        return ext == "hdf" || ext == "h5" || ext == "hdf5";
+    }
+
     static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
         ATFXChannelInfo a;
         a.channelName = h.channelName;
@@ -258,7 +262,7 @@ namespace {
 
 bool TaskPlanner::CollectInputPaths(std::vector<std::string>& inputPaths) {
     inputPaths.clear();
-    std::cout << "请输入 WAV 或 ATFX 或 HDF 文件路径（每行一个，输入 end 结束）:\n";
+    std::cout << "请输入 WAV 或 ATFX 或 HDF/H5 文件路径（每行一个，输入 end 结束）:\n";
     std::string s;
     while (true) {
         std::cout << "> ";
@@ -356,7 +360,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
             }
             std::cout << "\n";
         }
-        else if (files[fi].ext == "hdf") {
+        else if (is_hdf_ext(files[fi].ext)) {
             FFT11_HDFReader hdf;
             std::vector<HDFChannelInfo> hdfChannels;
             double fs = 0.0;
@@ -424,7 +428,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     std::cout << "\n分析类型：\n";
     std::cout << "1) FFT（平均频谱）\n";
     std::cout << "2) FFT vs time（时频谱）\n";
-    std::cout << "3) FFT vs rpm（转速频谱图，仅ATFX）\n";
+    std::cout << "3) FFT vs rpm（转速频谱图，支持ATFX/HDF/H5）\n";
     std::cout << "4) 1/1 倍频程\n";
     std::cout << "5) 1/3 倍频程\n";
     std::cout << "6) Level vs time（声级随时间）\n";
@@ -497,7 +501,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
         }
 
         for (size_t fi = 0; fi < files.size(); ++fi) {
-            if (!files[fi].selected || files[fi].ext != "atfx") continue;
+            if (!files[fi].selected || (files[fi].ext != "atfx" && !is_hdf_ext(files[fi].ext))) continue;
             if (files[fi].channels.empty()) continue;
 
             std::cout << "\n[FFT vs rpm] 文件[" << (fi + 1) << "] " << files[fi].path << "\n";
@@ -623,7 +627,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                     hasLast = true;
                 }
             }
-            else if (files[fi].ext == "atfx" || files[fi].ext == "hdf") {
+            else if (files[fi].ext == "atfx" || is_hdf_ext(files[fi].ext)) {
                 for (size_t ci : files[fi].selectedChannels) {
                     if (ci >= files[fi].channels.size()) continue;
                     const auto& ch = files[fi].channels[ci];
@@ -718,9 +722,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 jobs.push_back(j);
             }
         }
-        else if (files[fi].ext == "hdf") {
-            if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) continue;
-
+        else if (is_hdf_ext(files[fi].ext)) {
             for (size_t ci : files[fi].selectedChannels) {
                 if (ci >= files[fi].channels.size()) continue;
 
@@ -729,6 +731,13 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 j.isATFX = false;
                 j.channelIdx = ci;
                 j.mode = selectedAnalysisMode;
+
+                if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
+                    auto itRpm = fileRpmChannelName.find(fi);
+                    if (itRpm == fileRpmChannelName.end() || itRpm->second.empty()) continue;
+                    j.rpmChannelName = itRpm->second;
+                    j.rpmBinStep = rpmBinStep;
+                }
 
                 if (mode == 3) {
                     unsigned long long key =

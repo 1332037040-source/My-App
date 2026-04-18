@@ -5,7 +5,7 @@
 
 // Qt/上层可直接填写的输入结构
 struct BuildRequest {
-    // 输入文件路径（支持 wav/atfx）
+    // 输入文件路径（支持 wav/atfx/hdf/h5）
     std::vector<std::string> inputPaths;
 
     // 分析模式
@@ -21,8 +21,8 @@ struct BuildRequest {
     // 若某个atfx文件未给出，则默认全选通道
     std::vector<std::vector<size_t>> atfxSelectedChannelsByFile;
 
-    // FFT vs rpm 相关（仅ATFX有效）
-    // 每个ATFX文件对应一个rpm通道名；长度不足时按空处理（该文件跳过）
+    // FFT vs rpm 相关（ATFX/HDF有效）
+    // 每个文件对应一个rpm通道名；长度不足时按空处理（HDF可尝试自动识别）
     std::vector<std::string> rpmChannelNameByFile;
     double rpmBinStep = 50.0;
 };

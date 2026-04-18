@@ -10,6 +10,12 @@
 #include <vector>
 #include <string>
 
+namespace {
+    bool IsHdfExt(const std::string& ext) {
+        return ext == "hdf" || ext == "h5" || ext == "hdf5";
+    }
+}
+
 JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
 {
     JobResult r;
@@ -51,7 +57,7 @@ JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
     if (!spectrumSvc.ComputeWeightedAveragedFFT(sig, job, fft, err)) {
         if (!err.empty()) r.message = err;
         else if (job.isATFX) r.message = "ATFX FFT失败";
-        else if (file.ext == "hdf") r.message = "HDF FFT失败";
+        else if (IsHdfExt(file.ext)) r.message = "HDF FFT失败";
         else r.message = "WAV FFT失败";
         return r;
     }
