@@ -504,7 +504,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
 
             const std::string autoRpmName = IsHdfExt(files[fi].ext)
                 ? HdfChannelUtils::DetectRpmChannelName(files[fi].channels)
-                : std::string{};
+                : "";
 
             std::cout << "\n[FFT vs rpm] File[" << (fi + 1) << "] " << files[fi].path << "\n";
             if (!autoRpmName.empty()) {

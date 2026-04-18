@@ -19,7 +19,6 @@ static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     return a;
 }
 
-
 BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
     BuildResponse out;
     out.ok = false;
