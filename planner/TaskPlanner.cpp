@@ -28,6 +28,25 @@ namespace {
         return s;
     }
 
+    static bool contains_token_insensitive(const std::string& text, const std::string& token) {
+        return lower_copy(text).find(lower_copy(token)) != std::string::npos;
+    }
+
+    static std::string DetectRpmChannelNameFromHdf(const std::vector<ATFXChannelInfo>& channels) {
+        for (const auto& ch : channels) {
+            if (contains_token_insensitive(ch.unit, "rpm")) {
+                return ch.channelName;
+            }
+        }
+        for (const auto& ch : channels) {
+            if (contains_token_insensitive(ch.channelName, "rpm") ||
+                contains_token_insensitive(ch.channelLabel, "rpm")) {
+                return ch.channelName;
+            }
+        }
+        return "";
+    }
+
     static std::vector<size_t> parse_indices_csv_1based_safe(const std::string& raw, size_t maxCount) {
         std::set<size_t> uniq;
         if (maxCount == 0) return {};
@@ -501,13 +520,34 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             if (!files[fi].selected || (files[fi].ext != "atfx" && !IsHdfExt(files[fi].ext))) continue;
             if (files[fi].channels.empty()) continue;
 
+            const std::string autoRpmName = IsHdfExt(files[fi].ext)
+                ? DetectRpmChannelNameFromHdf(files[fi].channels)
+                : std::string{};
+
             std::cout << "\n[FFT vs rpm] File[" << (fi + 1) << "] " << files[fi].path << "\n";
-            std::cout << "Select rpm channel ID (single choice): ";
+            if (!autoRpmName.empty()) {
+                std::cout << "Select rpm channel ID (single choice, Enter=auto \"" << autoRpmName << "\"): ";
+            }
+            else {
+                std::cout << "Select rpm channel ID (single choice): ";
+            }
             std::string rpmSel;
             std::getline(std::cin, rpmSel);
+            rpmSel = trim_ws(rpmSel);
+
+            if (rpmSel.empty() && !autoRpmName.empty()) {
+                fileRpmChannelName[fi] = autoRpmName;
+                continue;
+            }
+
             auto rpmIdx = parse_indices_csv_1based_safe(rpmSel, files[fi].channels.size());
 
             if (rpmIdx.empty()) {
+                if (!autoRpmName.empty()) {
+                    std::cerr << "[Warn] Invalid rpm selection, using auto-detected channel: " << autoRpmName << "\n";
+                    fileRpmChannelName[fi] = autoRpmName;
+                    continue;
+                }
                 std::cerr << "[Error] No rpm channel selected, skipping file: " << files[fi].path << "\n";
                 files[fi].selected = false;
                 continue;
@@ -684,9 +724,12 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 j.mode = selectedAnalysisMode;
 
                 if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
+                    std::string rpmName;
                     auto itRpm = fileRpmChannelName.find(fi);
-                    if (itRpm == fileRpmChannelName.end() || itRpm->second.empty()) continue;
-                    j.rpmChannelName = itRpm->second;
+                    if (itRpm != fileRpmChannelName.end()) rpmName = itRpm->second;
+                    if (rpmName.empty()) rpmName = DetectRpmChannelNameFromHdf(files[fi].channels);
+                    if (rpmName.empty()) continue;
+                    j.rpmChannelName = rpmName;
                     j.rpmBinStep = rpmBinStep;
                 }
 
