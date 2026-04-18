@@ -2,6 +2,7 @@
 
 #include "flows/FFTFlow.h"
 #include "flows/FFTvsTimeFlow.h"
+#include "flows/FFTvsRpmFlow.h"
 #include "flows/OctaveFlow.h"
 #include "flows/LevelVsTimeFlow.h"
 
@@ -31,23 +32,14 @@ JobResult FFTExecutor::RunOne(const Job& job, const FileItem& file)
         return flow.Run(job, file);
     }
 
-    // 5) 暂未实现：FFT_VS_RPM
-    JobResult r;
-    r.ok = false;
-
+    // 5) FFT vs RPM -> FFTvsRpmFlow
     if (job.mode == AnalysisMode::FFT_VS_RPM) {
-        if (job.isATFX) {
-            r.message = "FFT vs rpm缺少rpm通道或不支持在频域octave模式";
-        }
-        else if (file.ext == "hdf") {
-            r.message = "FFT vs rpm当前不支持HDF";
-        }
-        else {
-            r.message = "FFT vs rpm当前不支持WAV";
-        }
-        return r;
+        FFTvsRpmFlow flow;
+        return flow.Run(job, file);
     }
 
+    JobResult r;
+    r.ok = false;
     r.message = "不支持的分析模式";
     return r;
 }

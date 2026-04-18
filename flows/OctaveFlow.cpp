@@ -5,6 +5,7 @@
 #include "../services/ExportService.h"
 #include "../features/octave_band/OctaveAnalyzer.h"
 #include "../core/Utils.h"
+#include "../domain/FileTypeUtils.h"
 
 #include <cmath>
 #include <vector>
@@ -51,7 +52,7 @@ JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
     if (!spectrumSvc.ComputeWeightedAveragedFFT(sig, job, fft, err)) {
         if (!err.empty()) r.message = err;
         else if (job.isATFX) r.message = "ATFX FFT失败";
-        else if (file.ext == "hdf") r.message = "HDF FFT失败";
+        else if (IsHdfExt(file.ext)) r.message = "HDF FFT失败";
         else r.message = "WAV FFT失败";
         return r;
     }

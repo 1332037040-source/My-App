@@ -1,4 +1,5 @@
-﻿#include "ReportWriter.h"
+#include "ReportWriter.h"
+#include "../domain/FileTypeUtils.h"
 #include <iostream>
 #include <iomanip>
 #include <cmath>
@@ -12,6 +13,15 @@ void ReportWriter::PrintPlan(const std::vector<Job>& jobs, const std::vector<Fil
         if (j.isATFX) {
             const auto& ch = f.channels[j.channelIdx];
             std::cout << "[" << (i + 1) << "] ATFX | "
+                << "文件[" << (j.fileIdx + 1) << "] " << f.path
+                << " | 通道[" << (j.channelIdx + 1) << "] " << ch.channelName
+                << " | N=" << j.params.block_size
+                << " | overlap=" << j.params.overlap_ratio
+                << "\n";
+        }
+        else if (IsHdfExt(f.ext)) {
+            const auto& ch = f.channels[j.channelIdx];
+            std::cout << "[" << (i + 1) << "] HDF  | "
                 << "文件[" << (j.fileIdx + 1) << "] " << f.path
                 << " | 通道[" << (j.channelIdx + 1) << "] " << ch.channelName
                 << " | N=" << j.params.block_size
@@ -35,6 +45,11 @@ void ReportWriter::PrintProgress(size_t idx, size_t total, const Job& job, const
     std::cout << "[处理 " << idx << "/" << total << "] ";
     if (job.isATFX) {
         std::cout << "ATFX | 文件: " << file.path
+            << " | 通道: " << file.channels[job.channelIdx].channelName
+            << "\n";
+    }
+    else if (IsHdfExt(file.ext)) {
+        std::cout << "HDF  | 文件: " << file.path
             << " | 通道: " << file.channels[job.channelIdx].channelName
             << "\n";
     }

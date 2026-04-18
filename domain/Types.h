@@ -1,4 +1,5 @@
-﻿#pragma once
+#pragma once
+#include <limits>
 #include <string>
 #include <vector>
 #include "preprocess/Window.h"
@@ -63,6 +64,7 @@ struct Job {
     AnalysisMode mode = AnalysisMode::FFT;
 
     std::string rpmChannelName;
+    size_t rpmChannelIdx = (std::numeric_limits<size_t>::max)();
     double rpmBinStep = 50.0;
 };
 

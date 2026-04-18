@@ -1,5 +1,7 @@
-﻿#include "TaskPlanner.h"
+#include "TaskPlanner.h"
+#include "../domain/HdfChannelUtils.h"
 #include "../domain/ParseUtils.h"
+#include "../domain/FileTypeUtils.h"
 #include "io/ATFXReader.h"
 #include "io/HDFReader.h"
 #include "../domain/Types.h"
@@ -25,6 +27,13 @@ namespace {
         std::transform(s.begin(), s.end(), s.begin(),
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         return s;
+    }
+
+    static size_t find_channel_index_by_name(const std::vector<ATFXChannelInfo>& channels, const std::string& channelName) {
+        for (size_t i = 0; i < channels.size(); ++i) {
+            if (channels[i].channelName == channelName) return i;
+        }
+        return channels.size();
     }
 
     static std::vector<size_t> parse_indices_csv_1based_safe(const std::string& raw, size_t maxCount) {
@@ -90,19 +99,19 @@ namespace {
 
         std::cout << "\n====================================\n";
         std::cout << title << "\n";
-        std::cout << "Level vs Time 参数设置\n";
+        std::cout << "Level vs Time Parameters\n";
         std::cout << "====================================\n";
 
         std::string s;
 
-        std::cout << "[1/6] 频率计权 (0=Z, 1=A, 2=C) [默认 0]: ";
+        std::cout << "[1/6] Frequency weighting (0=Z, 1=A, 2=C) [default 0]: ";
         std::getline(std::cin, s);
         s = trim_ws(s);
         if (s == "1") p.weight_type = Weighting::WeightType::A;
         else if (s == "2") p.weight_type = Weighting::WeightType::C;
         else p.weight_type = Weighting::WeightType::None;
 
-        std::cout << "[2/6] 时间计权 (1=Fast, 2=Slow, 3=Impulse, 4=Rectangle, 5=Manual) [默认 1]: ";
+        std::cout << "[2/6] Time weighting (1=Fast, 2=Slow, 3=Impulse, 4=Rectangle, 5=Manual) [default 1]: ";
         std::getline(std::cin, s);
         s = trim_ws(s);
         if (s == "2") p.time_weighting = "slow";
@@ -113,7 +122,7 @@ namespace {
 
         // 时间常数 / 窗长
         if (p.time_weighting == "manual") {
-            std::cout << "[3/6] 时间常数(秒) [默认 0.125]: ";
+            std::cout << "[3/6] Time constant (sec) [default 0.125]: ";
             std::getline(std::cin, s);
             s = trim_ws(s);
             if (!s.empty()) {
@@ -129,7 +138,7 @@ namespace {
             p.level_window_sec = p.level_time_constant_sec;
         }
         else if (p.time_weighting == "rectangle") {
-            std::cout << "[3/6] 矩形窗长(秒) [默认 0.125]: ";
+            std::cout << "[3/6] Rectangle window length (sec) [default 0.125]: ";
             std::getline(std::cin, s);
             s = trim_ws(s);
             if (!s.empty()) {
@@ -182,7 +191,7 @@ namespace {
 
         std::cout << "[DEBUG] computed defaultOutputStepSec = " << defaultOutputStepSec << std::endl;
 
-        std::cout << "[4/6] 输出步长/降采样步长(秒) [默认 " << defaultOutputStepSec << "]: ";
+        std::cout << "[4/6] Output/downsample step (sec) [default " << defaultOutputStepSec << "]: ";
         std::getline(std::cin, s);
         s = trim_ws(s);
         if (!s.empty()) {
@@ -196,7 +205,7 @@ namespace {
             p.level_output_step_sec = defaultOutputStepSec;
         }
 
-        std::cout << "[5/6] 校准因子 [默认 1.0]: ";
+        std::cout << "[5/6] Calibration factor [default 1.0]: ";
         std::getline(std::cin, s);
         s = trim_ws(s);
         if (!s.empty()) {
@@ -210,7 +219,7 @@ namespace {
             p.calibrationFactor = 1.0;
         }
 
-        std::cout << "[6/6] 参考值(默认 20e-6): ";
+        std::cout << "[6/6] Reference value (default 20e-6): ";
         std::getline(std::cin, s);
         s = trim_ws(s);
         if (!s.empty()) {
@@ -258,7 +267,7 @@ namespace {
 
 bool TaskPlanner::CollectInputPaths(std::vector<std::string>& inputPaths) {
     inputPaths.clear();
-    std::cout << "请输入 WAV 或 ATFX 或 HDF 文件路径（每行一个，输入 end 结束）:\n";
+    std::cout << "Enter WAV, ATFX, or HDF/H5 file paths (one per line, type end to finish):\n";
     std::string s;
     while (true) {
         std::cout << "> ";
@@ -287,11 +296,11 @@ bool TaskPlanner::BuildFileItems(const std::vector<std::string>& inputPaths, std
 }
 
 bool TaskPlanner::SelectFiles(std::vector<FileItem>& files) {
-    std::cout << "\n文件列表：\n";
+    std::cout << "\nFile list:\n";
     for (size_t i = 0; i < files.size(); ++i) {
         std::cout << "[" << (i + 1) << "] " << files[i].path << " (" << files[i].ext << ")\n";
     }
-    std::cout << "请选择要分析的文件（如 1,2,3；all=全部；回车=全部）: ";
+    std::cout << "Select files to analyze (e.g. 1,2,3; all=all; Enter=all): ";
     std::string s;
     std::getline(std::cin, s);
     auto idx = parse_indices_csv_1based_safe(s, files.size());
@@ -312,12 +321,12 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
         if (files[fi].ext == "atfx") {
             FFT11_ATFXReader atfx;
             if (!atfx.GetAllChannels(files[fi].path, files[fi].channels, files[fi].fs) || files[fi].channels.empty()) {
-                std::cerr << "[错误] 无法读取 ATFX 通道: " << files[fi].path << "\n";
+                std::cerr << "[Error] Failed to read ATFX channels: " << files[fi].path << "\n";
                 files[fi].selected = false;
                 continue;
             }
 
-            std::cout << "\n>>> 文件[" << (fi + 1) << "] " << files[fi].path << "\n";
+            std::cout << "\n>>> File[" << (fi + 1) << "] " << files[fi].path << "\n";
             std::cout << std::left
                 << std::setw(6) << "ID"
                 << std::setw(26) << "Name"
@@ -338,7 +347,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
                     << "\n";
             }
 
-            std::cout << "请选择该文件通道（如 1,3,5；all=全部；回车=全部）: ";
+            std::cout << "Select channels for this file (e.g. 1,3,5; all=all; Enter=all): ";
             std::string s;
             std::getline(std::cin, s);
             s = trim_ws(s);
@@ -348,7 +357,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
                 for (size_t ci = 0; ci < files[fi].channels.size(); ++ci) files[fi].selectedChannels.push_back(ci);
             }
 
-            std::cout << "[DBG] 文件[" << (fi + 1) << "] 选中通道数: "
+            std::cout << "[DBG] File[" << (fi + 1) << "] selected channel count: "
                 << files[fi].selectedChannels.size() << " -> ";
             for (size_t k = 0; k < files[fi].selectedChannels.size(); ++k) {
                 std::cout << (files[fi].selectedChannels[k] + 1);
@@ -356,13 +365,13 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
             }
             std::cout << "\n";
         }
-        else if (files[fi].ext == "hdf") {
+        else if (IsHdfExt(files[fi].ext)) {
             FFT11_HDFReader hdf;
             std::vector<HDFChannelInfo> hdfChannels;
             double fs = 0.0;
 
             if (!hdf.GetAllChannels(files[fi].path, hdfChannels, fs) || hdfChannels.empty()) {
-                std::cerr << "[错误] 无法读取 HDF 通道: " << files[fi].path << "\n";
+                std::cerr << "[Error] Failed to read HDF channels: " << files[fi].path << "\n";
                 files[fi].selected = false;
                 continue;
             }
@@ -374,7 +383,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
             }
             files[fi].fs = fs;
 
-            std::cout << "\n>>> 文件[" << (fi + 1) << "] " << files[fi].path << " [HDF]\n";
+            std::cout << "\n>>> File[" << (fi + 1) << "] " << files[fi].path << " [HDF]\n";
             std::cout << std::left
                 << std::setw(6) << "ID"
                 << std::setw(26) << "Name"
@@ -395,7 +404,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
                     << "\n";
             }
 
-            std::cout << "请选择该文件通道（如 1,3,5；all=全部；回车=全部）: ";
+            std::cout << "Select channels for this file (e.g. 1,3,5; all=all; Enter=all): ";
             std::string s;
             std::getline(std::cin, s);
             s = trim_ws(s);
@@ -405,7 +414,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
                 for (size_t ci = 0; ci < files[fi].channels.size(); ++ci) files[fi].selectedChannels.push_back(ci);
             }
 
-            std::cout << "[DBG] 文件[" << (fi + 1) << "] 选中HDF通道数: "
+            std::cout << "[DBG] File[" << (fi + 1) << "] selected HDF channel count: "
                 << files[fi].selectedChannels.size() << " -> ";
             for (size_t k = 0; k < files[fi].selectedChannels.size(); ++k) {
                 std::cout << (files[fi].selectedChannels[k] + 1);
@@ -419,16 +428,17 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
 
 bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std::vector<Job>& jobs) {
     jobs.clear();
+    bool missingHdfRpmChannel = false;
 
     AnalysisMode selectedAnalysisMode = AnalysisMode::FFT;
-    std::cout << "\n分析类型：\n";
-    std::cout << "1) FFT（平均频谱）\n";
-    std::cout << "2) FFT vs time（时频谱）\n";
-    std::cout << "3) FFT vs rpm（转速频谱图，仅ATFX）\n";
-    std::cout << "4) 1/1 倍频程\n";
-    std::cout << "5) 1/3 倍频程\n";
-    std::cout << "6) Level vs time（声级随时间）\n";
-    std::cout << "请选择（默认1）: ";
+    std::cout << "\nAnalysis type:\n";
+    std::cout << "1) FFT (average spectrum)\n";
+    std::cout << "2) FFT vs time (spectrogram)\n";
+    std::cout << "3) FFT vs rpm (supports ATFX/HDF/H5)\n";
+    std::cout << "4) 1/1 octave\n";
+    std::cout << "5) 1/3 octave\n";
+    std::cout << "6) Level vs time\n";
+    std::cout << "Select (default 1): ";
 
     std::string analysisStr;
     std::getline(std::cin, analysisStr);
@@ -453,10 +463,10 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     if (selectedAnalysisMode == AnalysisMode::OCTAVE_1_1 || selectedAnalysisMode == AnalysisMode::OCTAVE_1_3) {
         bandsPerOctave = (selectedAnalysisMode == AnalysisMode::OCTAVE_1_1) ? 1 : 3;
 
-        std::cout << "\n倍频程实现方法：\n";
-        std::cout << "1) FFT 积分法\n";
-        std::cout << "2) IIR 滤波器组\n";
-        std::cout << "请选择（默认2）: ";
+        std::cout << "\nOctave implementation:\n";
+        std::cout << "1) FFT integration\n";
+        std::cout << "2) IIR filter bank\n";
+        std::cout << "Select (default 2): ";
         std::string mm;
         std::getline(std::cin, mm);
         mm = trim_ws(mm);
@@ -471,7 +481,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             }
         }
 
-        std::cout << "倍频程参考值（默认1.0，若 dB SPL 用 20e-6）: ";
+        std::cout << "Octave reference value (default 1.0, use 20e-6 for dB SPL): ";
         std::string refStr;
         std::getline(std::cin, refStr);
         refStr = trim_ws(refStr);
@@ -482,9 +492,10 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     }
 
     std::map<size_t, std::string> fileRpmChannelName;
+    std::map<size_t, size_t> fileRpmChannelIdx;
     double rpmBinStep = 50.0;
     if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
-        std::cout << "\n[FFT vs rpm] 请输入 rpm 分箱步长（默认 50）: ";
+        std::cout << "\n[FFT vs rpm] Enter rpm bin step (default 50): ";
         std::string stepStr;
         std::getline(std::cin, stepStr);
         stepStr = trim_ws(stepStr);
@@ -497,40 +508,66 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
         }
 
         for (size_t fi = 0; fi < files.size(); ++fi) {
-            if (!files[fi].selected || files[fi].ext != "atfx") continue;
+            if (!files[fi].selected || (files[fi].ext != "atfx" && !IsHdfExt(files[fi].ext))) continue;
             if (files[fi].channels.empty()) continue;
 
-            std::cout << "\n[FFT vs rpm] 文件[" << (fi + 1) << "] " << files[fi].path << "\n";
-            std::cout << "请选择转速通道ID（单选）: ";
+            const std::string autoRpmName = IsHdfExt(files[fi].ext)
+                ? HdfChannelUtils::DetectRpmChannelName(files[fi].channels)
+                : "";
+
+            std::cout << "\n[FFT vs rpm] File[" << (fi + 1) << "] " << files[fi].path << "\n";
+            if (!autoRpmName.empty()) {
+                std::cout << "Select rpm channel ID (single choice, Enter=auto \"" << autoRpmName << "\"): ";
+            }
+            else {
+                std::cout << "Select rpm channel ID (single choice): ";
+            }
             std::string rpmSel;
             std::getline(std::cin, rpmSel);
+            rpmSel = trim_ws(rpmSel);
+
+            if (rpmSel.empty() && !autoRpmName.empty()) {
+                fileRpmChannelName[fi] = autoRpmName;
+                const size_t autoIdx = find_channel_index_by_name(files[fi].channels, autoRpmName);
+                if (autoIdx < files[fi].channels.size()) fileRpmChannelIdx[fi] = autoIdx;
+                continue;
+            }
+
             auto rpmIdx = parse_indices_csv_1based_safe(rpmSel, files[fi].channels.size());
 
             if (rpmIdx.empty()) {
-                std::cerr << "[错误] 未选择 rpm 通道，文件跳过: " << files[fi].path << "\n";
+                if (!autoRpmName.empty()) {
+                    std::cerr << "[Warn] Invalid rpm selection, using auto-detected channel: " << autoRpmName << "\n";
+                    fileRpmChannelName[fi] = autoRpmName;
+                    const size_t autoIdx = find_channel_index_by_name(files[fi].channels, autoRpmName);
+                    if (autoIdx < files[fi].channels.size()) fileRpmChannelIdx[fi] = autoIdx;
+                    continue;
+                }
+                std::cerr << "[Error] No rpm channel selected, skipping file: " << files[fi].path << "\n";
                 files[fi].selected = false;
                 continue;
             }
 
             size_t rpmCi = rpmIdx.front();
             if (rpmCi >= files[fi].channels.size()) {
-                std::cerr << "[错误] rpm 通道索引越界，文件跳过: " << files[fi].path << "\n";
+                std::cerr << "[Error] rpm channel index out of range, skipping file: " << files[fi].path << "\n";
                 files[fi].selected = false;
                 continue;
             }
 
             fileRpmChannelName[fi] = files[fi].channels[rpmCi].channelName;
+            fileRpmChannelIdx[fi] = rpmCi;
         }
     }
 
     std::map<size_t, FFTParams> fileParams;
     std::map<unsigned long long, FFTParams> channelParams;
 
-    std::cout << "\n参数模式：\n";
-    std::cout << "1) 统一参数\n";
-    std::cout << "2) 按文件参数\n";
-    std::cout << "3) 按通道参数\n";
-    std::cout << "请选择（默认1）: ";
+    std::cout << "\nParameter mode:\n";
+    std::cout << "1) Shared parameters\n";
+    std::cout << "2) Per-file parameters\n";
+    std::cout << "3) Per-channel parameters\n";
+    std::cout << "Select (default 1): ";
     std::string modeStr;
     std::getline(std::cin, modeStr);
 
@@ -548,11 +585,11 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     if (mode == 1) {
         FFTParams shared{};
         if (selectedAnalysisMode == AnalysisMode::LEVEL_VS_TIME) {
-            AskLevelVsTimeParams(shared, "[统一参数设置]");
+            AskLevelVsTimeParams(shared, "[Shared Parameters]");
         }
         else {
-            shared = AskFFTParamsWithTitle("[统一参数设置]");
-            ApplyModeSpecificParams(shared, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, "[统一参数设置]");
+            shared = AskFFTParamsWithTitle("[Shared Parameters]");
+            ApplyModeSpecificParams(shared, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, "[Shared Parameters]");
         }
 
         std::cout << std::fixed << std::setprecision(9)
@@ -572,7 +609,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     else if (mode == 2) {
         for (size_t fi = 0; fi < files.size(); ++fi) {
             if (!files[fi].selected) continue;
-            std::string title = "[按文件参数] 文件[" + std::to_string(fi + 1) + "] " + files[fi].path;
+            std::string title = "[Per-file Parameters] File[" + std::to_string(fi + 1) + "] " + files[fi].path;
 
             FFTParams p{};
             if (selectedAnalysisMode == AnalysisMode::LEVEL_VS_TIME) {
@@ -604,8 +641,8 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             if (!files[fi].selected) continue;
 
             if (files[fi].ext == "wav") {
-                std::string title = "[按通道参数-WAV] 文件[" + std::to_string(fi + 1) + "] " + files[fi].path;
-                if (hasLast && ask_reuse_default_yes("WAV 是否复用上一次参数？")) {
+                std::string title = "[Per-channel Parameters - WAV] File[" + std::to_string(fi + 1) + "] " + files[fi].path;
+                if (hasLast && ask_reuse_default_yes("Reuse the previous WAV parameters?")) {
                     fileParams[fi] = lastParams;
                 }
                 else {
@@ -623,20 +660,20 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                     hasLast = true;
                 }
             }
-            else if (files[fi].ext == "atfx" || files[fi].ext == "hdf") {
+            else if (files[fi].ext == "atfx" || IsHdfExt(files[fi].ext)) {
                 for (size_t ci : files[fi].selectedChannels) {
                     if (ci >= files[fi].channels.size()) continue;
                     const auto& ch = files[fi].channels[ci];
                     std::string title =
-                        "[按通道参数] 文件[" + std::to_string(fi + 1) + "] " + files[fi].path +
-                        "\n            通道[" + std::to_string(ci + 1) + "] " + ch.channelName +
+                        "[Per-channel Parameters] File[" + std::to_string(fi + 1) + "] " + files[fi].path +
+                        "\n            Channel[" + std::to_string(ci + 1) + "] " + ch.channelName +
                         (ch.unit.empty() ? "" : (" [" + ch.unit + "]"));
 
                     unsigned long long key =
                         (static_cast<unsigned long long>(fi) << 32ULL) |
                         static_cast<unsigned long long>(ci);
 
-                    if (hasLast && ask_reuse_default_yes("通道 \"" + ch.channelName + "\" 是否复用上一次参数？")) {
+                    if (hasLast && ask_reuse_default_yes("Reuse the previous parameters for channel \"" + ch.channelName + "\"?")) {
                         channelParams[key] = lastParams;
                     }
                     else {
@@ -683,9 +720,14 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 j.mode = selectedAnalysisMode;
 
                 if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
+                    std::string rpmName;
                     auto itRpm = fileRpmChannelName.find(fi);
-                    if (itRpm == fileRpmChannelName.end() || itRpm->second.empty()) continue;
-                    j.rpmChannelName = itRpm->second;
+                    if (itRpm != fileRpmChannelName.end()) rpmName = itRpm->second;
+                    if (rpmName.empty()) rpmName = HdfChannelUtils::DetectRpmChannelName(files[fi].channels);
+                    if (rpmName.empty()) continue;
+                    j.rpmChannelName = rpmName;
+                    auto itRpmIdx = fileRpmChannelIdx.find(fi);
+                    if (itRpmIdx != fileRpmChannelIdx.end()) j.rpmChannelIdx = itRpmIdx->second;
                     j.rpmBinStep = rpmBinStep;
                 }
 
@@ -718,9 +760,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 jobs.push_back(j);
             }
         }
-        else if (files[fi].ext == "hdf") {
-            if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) continue;
-
+        else if (IsHdfExt(files[fi].ext)) {
             for (size_t ci : files[fi].selectedChannels) {
                 if (ci >= files[fi].channels.size()) continue;
 
@@ -729,6 +769,33 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 j.isATFX = false;
                 j.channelIdx = ci;
                 j.mode = selectedAnalysisMode;
+
+                if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
+                    std::string rpmName;
+                    auto itRpm = fileRpmChannelName.find(fi);
+                    if (itRpm != fileRpmChannelName.end()) rpmName = itRpm->second;
+                    if (rpmName.empty()) rpmName = HdfChannelUtils::DetectRpmChannelName(files[fi].channels);
+                    if (rpmName.empty()) {
+                        missingHdfRpmChannel = true;
+                        continue;
+                    }
+
+                    j.rpmChannelName = rpmName;
+
+                    auto itRpmIdx = fileRpmChannelIdx.find(fi);
+                    if (itRpmIdx != fileRpmChannelIdx.end()) {
+                        j.rpmChannelIdx = itRpmIdx->second;
+                    }
+                    else {
+                        const size_t rpmIdx = find_channel_index_by_name(files[fi].channels, rpmName);
+                        if (rpmIdx >= files[fi].channels.size()) {
+                            missingHdfRpmChannel = true;
+                            continue;
+                        }
+                        j.rpmChannelIdx = rpmIdx;
+                    }
+                    j.rpmBinStep = rpmBinStep;
+                }
 
                 if (mode == 3) {
                     unsigned long long key =
@@ -788,5 +855,8 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     }
 
     std::cout << "[DBG] Build jobs done: " << jobs.size() << "\n";
+    if (jobs.empty() && missingHdfRpmChannel) {
+        std::cerr << "[Error] Missing rpm channel for selected HDF/H5 file(s)\n";
+    }
     return !jobs.empty();
 }

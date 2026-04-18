@@ -37,11 +37,12 @@ set(CORE_SOURCES
     planner/TaskBuilder.cpp
 
     services/DataReaderService.cpp
-    services/SpectrumService.cpp
+    services/spectrumService.cpp
     services/ExportService.cpp
 
     flows/FFTFlow.cpp
     flows/FFTvsTimeFlow.cpp
+    flows/FFTvsRpmFlow.cpp
     flows/OctaveFlow.cpp
     flows/LevelVsTimeFlow.cpp
 
@@ -63,6 +64,7 @@ set(CORE_HEADERS
 
     features/level_vs_time/LevelVsTimeAnalyzer.h
     flows/LevelVsTimeFlow.h
+    flows/FFTvsRpmFlow.h
 )
 
 add_library(myapp_core STATIC

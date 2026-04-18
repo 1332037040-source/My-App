@@ -4,6 +4,7 @@
 #include "../services/ExportService.h"
 #include "../features/fft_vs_time/FFTvsTimeAnalyzer.h"
 #include "../core/Utils.h"
+#include "../domain/FileTypeUtils.h"
 
 #include <string>
 
@@ -40,7 +41,7 @@ JobResult FFTvsTimeFlow::Run(const Job& job, const FileItem& file)
     Spectrogram sp = FFTvsTimeAnalyzer::Compute(sig.samples, sig.fs, job.params);
     if (sp.timeBins == 0 || sp.freqBins == 0) {
         if (job.isATFX) r.message = "ATFX FFT vs time失败";
-        else if (file.ext == "hdf") r.message = "HDF FFT vs time失败";
+        else if (IsHdfExt(file.ext)) r.message = "HDF FFT vs time失败";
         else r.message = "WAV FFT vs time失败";
         return r;
     }

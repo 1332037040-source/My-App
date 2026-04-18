@@ -4,6 +4,7 @@
 #include "../services/ExportService.h"
 #include "../features/level_vs_time/LevelVsTimeAnalyzer.h"
 #include "../core/Utils.h"
+#include "../domain/FileTypeUtils.h"
 
 #include <string>
 
@@ -41,7 +42,7 @@ JobResult LevelVsTimeFlow::Run(const Job& job, const FileItem& file)
 
     if (series.points.empty()) {
         if (job.isATFX) r.message = "ATFX Level vs Time失败";
-        else if (file.ext == "hdf") r.message = "HDF Level vs Time失败";
+        else if (IsHdfExt(file.ext)) r.message = "HDF Level vs Time失败";
         else r.message = "WAV Level vs Time失败";
         return r;
     }

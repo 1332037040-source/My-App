@@ -96,9 +96,8 @@ static FFTParams AskFFTParamsImpl(const std::string* title, const FFTParams& d) 
         std::cout << "========================================\n";
     }
 
-    // 关键修正：支持默认值回车沿用，避免 TaskPlanner 里复用参数时被强制覆盖
-    std::cout << "[1/5] 窗函数 (1-Rect,2-Hanning,3-Hamming,4-Blackman,5-Bartlett,6-FlatTop)"
-        << " [默认 " << WindowTypeToMenuIndex(d.window_type) << "]: ";
+    std::cout << "[1/5] Window function (1-Rect,2-Hanning,3-Hamming,4-Blackman,5-Bartlett,6-FlatTop)"
+        << " [default " << WindowTypeToMenuIndex(d.window_type) << "]: ";
     std::string winStr;
     std::getline(std::cin, winStr);
     winStr = trim_copy(winStr);
@@ -115,7 +114,7 @@ static FFTParams AskFFTParamsImpl(const std::string* title, const FFTParams& d) 
         p.window_type = d.window_type;
     }
 
-    std::cout << "[2/5] FFT块长(默认 " << d.block_size << "): ";
+    std::cout << "[2/5] FFT block size (default " << d.block_size << "): ";
     std::string bsStr;
     std::getline(std::cin, bsStr);
     bsStr = trim_copy(bsStr);
@@ -132,7 +131,7 @@ static FFTParams AskFFTParamsImpl(const std::string* title, const FFTParams& d) 
         p.block_size = d.block_size;
     }
 
-    std::cout << "[3/5] 重叠比例（0-1，默认 " << d.overlap_ratio << "): ";
+    std::cout << "[3/5] Overlap ratio (0-1, default " << d.overlap_ratio << "): ";
     std::string ovStr;
     std::getline(std::cin, ovStr);
     ovStr = trim_copy(ovStr);
@@ -149,7 +148,7 @@ static FFTParams AskFFTParamsImpl(const std::string* title, const FFTParams& d) 
         p.overlap_ratio = d.overlap_ratio;
     }
 
-    std::cout << "[4/5] 幅值计权(1-Peak,2-RMS) [默认 "
+    std::cout << "[4/5] Amplitude scaling (1-Peak,2-RMS) [default "
         << ((d.amp_scaling == Analyzer::AmplitudeScaling::RMS) ? 2 : 1) << "]: ";
     std::string scStr;
     std::getline(std::cin, scStr);
@@ -167,7 +166,7 @@ static FFTParams AskFFTParamsImpl(const std::string* title, const FFTParams& d) 
         p.amp_scaling = d.amp_scaling;
     }
 
-    std::cout << "[5/5] 频率计权(0-无,1-A,2-B,3-C,4-D) [默认 " << static_cast<int>(d.weight_type) << "]: ";
+    std::cout << "[5/5] Frequency weighting (0-None,1-A,2-B,3-C,4-D) [default " << static_cast<int>(d.weight_type) << "]: ";
     std::string wtStr;
     std::getline(std::cin, wtStr);
     wtStr = trim_copy(wtStr);
