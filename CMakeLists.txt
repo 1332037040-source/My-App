@@ -42,6 +42,7 @@ set(CORE_SOURCES
 
     flows/FFTFlow.cpp
     flows/FFTvsTimeFlow.cpp
+    flows/FFTvsRpmFlow.cpp
     flows/OctaveFlow.cpp
     flows/LevelVsTimeFlow.cpp
 
@@ -63,12 +64,13 @@ set(CORE_HEADERS
 
     features/level_vs_time/LevelVsTimeAnalyzer.h
     flows/LevelVsTimeFlow.h
+    flows/FFTvsRpmFlow.h
 )
 
 add_library(myapp_core STATIC
     ${CORE_SOURCES}
     ${CORE_HEADERS}
-)
+ "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp")
 
 target_include_directories(myapp_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -91,7 +93,7 @@ set(CLI_SOURCES
 
 add_executable(MyApp
     ${CLI_SOURCES}
-)
+ "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp")
 
 target_include_directories(MyApp PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

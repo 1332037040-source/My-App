@@ -4,8 +4,11 @@
 #include "io/HDFReader.h"
 
 #include <set>
+#include <string>
+#include <vector>
 
-static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
+static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h)
+{
     ATFXChannelInfo a;
     a.channelName = h.channelName;
     a.dataType = h.dataType;
@@ -17,7 +20,8 @@ static ATFXChannelInfo ToATFXLike(const HDFChannelInfo& h) {
     return a;
 }
 
-BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
+BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
+{
     BuildResponse out;
     out.ok = false;
     out.message = "unknown";
@@ -48,19 +52,22 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
         if (f.ext == "atfx") {
             FFT11_ATFXReader atfx;
             if (!atfx.GetAllChannels(f.path, f.channels, f.fs) || f.channels.empty()) {
-                f.selected = false; // 读取失败跳过
+                f.selected = false;
                 continue;
             }
 
             f.selectedChannels.clear();
 
-            bool hasCustom = (fi < req.atfxSelectedChannelsByFile.size() &&
-                !req.atfxSelectedChannelsByFile[fi].empty());
+            const bool hasCustom =
+                (fi < req.atfxSelectedChannelsByFile.size() &&
+                    !req.atfxSelectedChannelsByFile[fi].empty());
 
             if (hasCustom) {
                 std::set<size_t> uniq;
                 for (size_t ci : req.atfxSelectedChannelsByFile[fi]) {
-                    if (ci < f.channels.size()) uniq.insert(ci);
+                    if (ci < f.channels.size()) {
+                        uniq.insert(ci);
+                    }
                 }
                 f.selectedChannels.assign(uniq.begin(), uniq.end());
             }
@@ -71,7 +78,6 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
                 }
             }
         }
-
         // ---------- HDF ----------
         else if (f.ext == "hdf") {
             FFT11_HDFReader hdf;
@@ -79,11 +85,10 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
             double fs = 0.0;
 
             if (!hdf.GetAllChannels(f.path, hdfChannels, fs) || hdfChannels.empty()) {
-                f.selected = false; // 读取失败跳过
+                f.selected = false;
                 continue;
             }
 
-            // 映射到 FileItem.channels (ATFXChannelInfo)
             f.channels.clear();
             f.channels.reserve(hdfChannels.size());
             for (const auto& hc : hdfChannels) {
@@ -93,14 +98,16 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
 
             f.selectedChannels.clear();
 
-            // 复用 req.atfxSelectedChannelsByFile 作为“文件->通道索引”通用输入
-            bool hasCustom = (fi < req.atfxSelectedChannelsByFile.size() &&
-                !req.atfxSelectedChannelsByFile[fi].empty());
+            const bool hasCustom =
+                (fi < req.atfxSelectedChannelsByFile.size() &&
+                    !req.atfxSelectedChannelsByFile[fi].empty());
 
             if (hasCustom) {
                 std::set<size_t> uniq;
                 for (size_t ci : req.atfxSelectedChannelsByFile[fi]) {
-                    if (ci < f.channels.size()) uniq.insert(ci);
+                    if (ci < f.channels.size()) {
+                        uniq.insert(ci);
+                    }
                 }
                 f.selectedChannels.assign(uniq.begin(), uniq.end());
             }
@@ -134,6 +141,7 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
 
                 if (req.mode == AnalysisMode::FFT_VS_RPM) {
                     if (fi >= req.rpmChannelNameByFile.size()) continue;
+
                     const std::string& rpmName = req.rpmChannelNameByFile[fi];
                     if (rpmName.empty()) continue;
 
@@ -144,30 +152,36 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req) {
                 out.jobs.push_back(j);
             }
         }
-
         // ---------- HDF ----------
         else if (f.ext == "hdf") {
-            // FFT vs rpm 当前不支持 HDF
-            if (req.mode == AnalysisMode::FFT_VS_RPM) continue;
-
             for (size_t ci : f.selectedChannels) {
                 if (ci >= f.channels.size()) continue;
 
                 Job j;
                 j.fileIdx = fi;
-                j.isATFX = false;   // 在执行器中通过 file.ext=="hdf" 分支处理
+                j.isATFX = false;
                 j.channelIdx = ci;
                 j.mode = req.mode;
                 j.params = req.fftParams;
 
+                if (req.mode == AnalysisMode::FFT_VS_RPM) {
+                    if (fi >= req.rpmChannelNameByFile.size()) continue;
+
+                    const std::string& rpmName = req.rpmChannelNameByFile[fi];
+                    if (rpmName.empty()) continue;
+
+                    j.rpmChannelName = rpmName;
+                    j.rpmBinStep = (req.rpmBinStep > 0.0 ? req.rpmBinStep : 50.0);
+                }
+
                 out.jobs.push_back(j);
             }
         }
-
         // ---------- WAV ----------
         else if (f.ext == "wav") {
-            // FFT vs rpm 暂不支持 WAV
-            if (req.mode == AnalysisMode::FFT_VS_RPM) continue;
+            if (req.mode == AnalysisMode::FFT_VS_RPM) {
+                continue;
+            }
 
             Job j;
             j.fileIdx = fi;

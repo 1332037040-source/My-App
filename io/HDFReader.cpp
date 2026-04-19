@@ -285,7 +285,8 @@ namespace {
 
 bool FFT11_HDFReader::GetAllChannels(const std::string& hdfPath,
     std::vector<HDFChannelInfo>& outChannels,
-    double& sampleRate) {
+    double& sampleRate)
+{
     outChannels.clear();
     sampleRate = 0.0;
 
@@ -312,13 +313,26 @@ bool FFT11_HDFReader::GetAllChannels(const std::string& hdfPath,
         outChannels.push_back(std::move(ch));
     }
 
+    std::cout << "[DEBUG] HDF GetAllChannels:"
+        << " path=" << hdfPath
+        << ", kind=" << meta.kind
+        << ", byteOrder=" << meta.byteOrder
+        << ", implType=" << meta.implementationType
+        << ", startOfData=" << meta.startOfData
+        << ", nChannels=" << meta.nChannels
+        << ", nScans=" << meta.nScans
+        << ", deltaValue=" << meta.deltaValue
+        << ", sampleRate=" << sampleRate
+        << std::endl;
+
     return !outChannels.empty();
 }
 
 bool FFT11_HDFReader::ReadChannelData(const std::string& hdfPath,
     const std::string& channelName,
     std::vector<float>& outData,
-    double& sampleRate) {
+    double& sampleRate)
+{
     outData.clear();
     sampleRate = 0.0;
 
@@ -337,6 +351,20 @@ bool FFT11_HDFReader::ReadChannelData(const std::string& hdfPath,
 
     if (IsTimeKind(meta) && meta.deltaValue > 0.0) sampleRate = 1.0 / meta.deltaValue;
     else sampleRate = 0.0;
+
+    std::cout << "[DEBUG] HDF ReadChannelData header:"
+        << " path=" << hdfPath
+        << ", channelName=" << channelName
+        << ", kind=" << meta.kind
+        << ", byteOrder=" << meta.byteOrder
+        << ", implType=" << meta.implementationType
+        << ", startOfData=" << meta.startOfData
+        << ", nChannels=" << meta.nChannels
+        << ", nScans=" << meta.nScans
+        << ", deltaValue=" << meta.deltaValue
+        << ", sampleRate=" << sampleRate
+        << ", chOrderRaw=" << meta.chOrderRaw
+        << std::endl;
 
     // 找通道
     size_t targetCh = std::numeric_limits<size_t>::max();
@@ -400,6 +428,15 @@ bool FFT11_HDFReader::ReadChannelData(const std::string& hdfPath,
                 const unsigned char* p = raw.data() + idx * sizeof(float);
                 outData[i] = ReadF32(p, littleFile);
             }
+
+            std::cout << "[DEBUG] HDF ReadChannelData simple:"
+                << " channel=" << channelName
+                << ", isComplex=" << isComplex
+                << ", expectedScans=" << meta.nScans
+                << ", outData.size=" << outData.size()
+                << ", raw.size=" << raw.size()
+                << std::endl;
+
             return true;
         }
         else {
@@ -416,8 +453,17 @@ bool FFT11_HDFReader::ReadChannelData(const std::string& hdfPath,
                 const unsigned char* p = raw.data() + cidx * sizeof(float) * 2;
                 float re = ReadF32(p, littleFile);
                 float im = ReadF32(p + sizeof(float), littleFile);
-                outData[i] = std::sqrt(re * re + im * im); // 输出幅值
+                outData[i] = std::sqrt(re * re + im * im);
             }
+
+            std::cout << "[DEBUG] HDF ReadChannelData simple:"
+                << " channel=" << channelName
+                << ", isComplex=" << isComplex
+                << ", expectedScans=" << meta.nScans
+                << ", outData.size=" << outData.size()
+                << ", raw.size=" << raw.size()
+                << std::endl;
+
             return true;
         }
     }
@@ -481,9 +527,33 @@ bool FFT11_HDFReader::ReadChannelData(const std::string& hdfPath,
         return false;
     }
 
-    if (meta.nScans > 0 && outData.size() > meta.nScans) {
-        outData.resize(meta.nScans);
+    // ===== 修复点 =====
+    // 旧逻辑会把所有 block-interleave 通道都截断到 meta.nScans，
+    // 对 targetPerBlock>1（例如 mic left 的 48*4）是错误的，
+    // 会导致 480000 被截成 10000。
+    const size_t expectedTargetSamples = nBlocks * targetPerBlock;
+
+    if (outData.size() > expectedTargetSamples) {
+        std::cout << "[DEBUG] HDF ReadChannelData resize-to-expectedTargetSamples:"
+            << " channel=" << channelName
+            << ", before=" << outData.size()
+            << ", expectedTargetSamples=" << expectedTargetSamples
+            << std::endl;
+        outData.resize(expectedTargetSamples);
     }
+
+    // 如果出现 outData.size() < expectedTargetSamples，通常代表文件尾部不完整或读取中断；
+    // 这里保留现状并通过 debug 暴露。
+    std::cout << "[DEBUG] HDF ReadChannelData block-interleave:"
+        << " channel=" << channelName
+        << ", isComplex=" << isComplex
+        << ", nBlocks=" << nBlocks
+        << ", targetPerBlock=" << targetPerBlock
+        << ", outData.size=" << outData.size()
+        << ", expectedTargetSamples=" << expectedTargetSamples
+        << ", meta.nScans=" << meta.nScans
+        << ", raw.size=" << raw.size()
+        << std::endl;
 
     return true;
 }

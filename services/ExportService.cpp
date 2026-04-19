@@ -83,22 +83,39 @@ bool ExportService::WriteRpmSpectrogram(const RpmSpectrogram& sp,
         return false;
     }
 
+    ofs << std::setprecision(10);
+
+    // 元信息
     ofs << "# fs=" << sp.fs
         << ", blockSize=" << sp.blockSize
         << ", rpmMin=" << sp.rpmMin
         << ", rpmMax=" << sp.rpmMax
         << ", rpmStep=" << sp.rpmStep
         << ", rpmBins=" << sp.rpmBins
-        << ", freqBins=" << sp.freqBins << "\n";
+        << ", freqBins=" << sp.freqBins
+        << "\n";
 
-    ofs << "rpm";
-    for (size_t k = 0; k < sp.freqBins; ++k) ofs << ",bin_" << k;
-    ofs << "\n";
-
+    // 表头：第一列频率，后续列为rpm（横轴）
+    ofs << "freq_hz";
     for (size_t r = 0; r < sp.rpmBins; ++r) {
         const double rpm = sp.rpmMin + static_cast<double>(r) * sp.rpmStep;
-        ofs << rpm;
-        for (size_t k = 0; k < sp.freqBins; ++k) ofs << "," << sp.at(r, k);
+        ofs << "," << rpm;
+    }
+    ofs << "\n";
+
+    // 数据：每行一个频率点（纵轴）
+    // 为对齐Artemis观感，从 k=1 开始（跳过0Hz���
+    const double df = (sp.blockSize > 0)
+        ? (sp.fs / static_cast<double>(sp.blockSize))
+        : 0.0;
+
+    for (size_t k = 1; k < sp.freqBins; ++k) {
+        const double freq = static_cast<double>(k) * df;
+        ofs << freq;
+
+        for (size_t r = 0; r < sp.rpmBins; ++r) {
+            ofs << "," << sp.at(r, k); // dataDb[r * freqBins + k]
+        }
         ofs << "\n";
     }
 
