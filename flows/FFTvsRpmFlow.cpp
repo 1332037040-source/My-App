@@ -18,13 +18,11 @@
 
 namespace
 {
-    // ===== 单文件导出模式 =====
-    constexpr double kManualTimeOffsetSec = 0.55;   // 你前面扫描得到的最优shift
+    constexpr double kManualTimeOffsetSec = 0.55;
     constexpr bool kUseHalfWindowCenter = true;
 
-    // ===== 角域开关 =====
-    constexpr bool kUseOrderTracking = false;        // true=使用AngleResampler
-    constexpr double kSamplesPerRev = 1024.0;       // 每转采样点数
+    constexpr bool kUseOrderTracking = false;
+    constexpr double kSamplesPerRev = 1024.0;
 
     bool ReadRpmChannel(
         const FileItem& file,
@@ -161,6 +159,39 @@ namespace
         }
         return out;
     }
+
+    std::vector<std::vector<double>> BuildFreqFrames(const RpmSpectrogram& rpmSp)
+    {
+        std::vector<std::vector<double>> freqFrames;
+        if (rpmSp.rpmBins == 0 || rpmSp.freqBins == 0 || rpmSp.fs <= 0.0 || rpmSp.blockSize == 0) {
+            return freqFrames;
+        }
+
+        freqFrames.resize(rpmSp.rpmBins, std::vector<double>(rpmSp.freqBins, 0.0));
+        const double df = rpmSp.fs / static_cast<double>(rpmSp.blockSize);
+        for (size_t r = 0; r < rpmSp.rpmBins; ++r) {
+            for (size_t f = 0; f < rpmSp.freqBins; ++f) {
+                freqFrames[r][f] = static_cast<double>(f) * df;
+            }
+        }
+        return freqFrames;
+    }
+
+    std::vector<std::vector<double>> BuildAmpFrames(const RpmSpectrogram& rpmSp)
+    {
+        std::vector<std::vector<double>> ampFrames;
+        if (rpmSp.rpmBins == 0 || rpmSp.freqBins == 0 || rpmSp.dataDb.empty()) {
+            return ampFrames;
+        }
+
+        ampFrames.resize(rpmSp.rpmBins, std::vector<double>(rpmSp.freqBins, 0.0));
+        for (size_t r = 0; r < rpmSp.rpmBins; ++r) {
+            for (size_t f = 0; f < rpmSp.freqBins; ++f) {
+                ampFrames[r][f] = rpmSp.at(r, f);
+            }
+        }
+        return ampFrames;
+    }
 }
 
 JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
@@ -182,7 +213,6 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
     DataReaderService reader;
     ExportService exportSvc;
 
-    // 1) 读取主信号
     SignalData sig;
     std::string err;
     if (!reader.ReadSignal(job, file, sig, err)) {
@@ -190,7 +220,6 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
         return r;
     }
 
-    // 2) 读取rpm通道
     std::vector<double> rpmSignalRaw;
     double fsRpm = 0.0;
     if (!ReadRpmChannel(file, job.rpmChannelName, rpmSignalRaw, fsRpm, err)) {
@@ -198,94 +227,44 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
         return r;
     }
 
-    std::cout << "[DEBUG] FFTvsRpmFlow main signal:"
-        << " fs=" << sig.fs
-        << ", samples=" << sig.samples.size()
-        << ", channel=" << sig.channelName
-        << std::endl;
-    PrintSignalPreview(sig.samples, "main.samples");
-
-    std::cout << "[DEBUG] FFTvsRpmFlow rpm signal(raw):"
-        << " fsRpm(rawMeta)=" << fsRpm
-        << ", channel=" << job.rpmChannelName
-        << std::endl;
-    PrintSignalPreview(rpmSignalRaw, "rpmSignalRaw");
-
-    // 3) rpm映射到主信号时轴（保持你现有逻辑）
     std::vector<double> rpmOnMainAxis = ResampleRpmToMainAxis(rpmSignalRaw, sig.samples.size());
 
-    std::cout << "[DEBUG] FFTvsRpmFlow rpm signal(main-axis):"
-        << " fsMain=" << sig.fs
-        << ", mappedSize=" << rpmOnMainAxis.size()
-        << std::endl;
-    PrintSignalPreview(rpmOnMainAxis, "rpmOnMainAxis");
-
-    // 4) 构建分析输入（时域 or 角域）
     std::vector<double> analysisSignal;
-    double analysisFs = sig.fs; // 默认时域fs
+    double analysisFs = sig.fs;
 
     if (kUseOrderTracking) {
         std::vector<double> xTheta, tTheta;
         const double dTheta = 2.0 * M_PI / kSamplesPerRev;
 
         bool ok = OrderTracking::ResampleByAngle(
-            sig.samples,
-            rpmOnMainAxis,
-            sig.fs,
-            dTheta,
-            xTheta,
-            tTheta
-        );
+            sig.samples, rpmOnMainAxis, sig.fs, dTheta, xTheta, tTheta);
 
         if (!ok || xTheta.empty()) {
             r.message = "AngleResampler失败";
             return r;
         }
 
-        // 复用现有FFT模块的近似等效采样率
         double rpmMean = 0.0;
         for (double v : rpmOnMainAxis) rpmMean += v;
         rpmMean /= std::max<size_t>(size_t(1), rpmOnMainAxis.size());
 
         analysisFs = kSamplesPerRev * (std::max(1e-6, rpmMean) / 60.0);
         analysisSignal = std::move(xTheta);
-
-        std::cout << "[DEBUG] OrderTracking ON:"
-            << " x=" << sig.samples.size()
-            << ", rpm=" << rpmOnMainAxis.size()
-            << ", xTheta=" << analysisSignal.size()
-            << ", tTheta=" << tTheta.size()
-            << ", samplesPerRev=" << kSamplesPerRev
-            << ", meanRpm=" << rpmMean
-            << ", analysisFs=" << analysisFs
-            << std::endl;
     }
     else {
         analysisSignal = sig.samples;
         analysisFs = sig.fs;
-        std::cout << "[DEBUG] OrderTracking OFF (time-domain STFT)" << std::endl;
     }
 
-    // 5) FFT vs Time
     Spectrogram sp = FFTvsTimeAnalyzer::Compute(analysisSignal, analysisFs, job.params);
     if (sp.timeBins == 0 || sp.freqBins == 0 || sp.dataDb.empty()) {
         r.message = "FFT vs time 计算失败";
         return r;
     }
 
-    std::cout << "[DEBUG] FFTvsRpmFlow spectrogram:"
-        << " fs=" << sp.fs
-        << ", blockSize=" << sp.blockSize
-        << ", hopSize=" << sp.hopSize
-        << ", timeBins=" << sp.timeBins
-        << ", freqBins=" << sp.freqBins
-        << ", frameTimeSec.size=" << sp.frameTimeSec.size()
-        << std::endl;
-
-    // 6) 帧时刻 + 单次偏移
     std::vector<double> frameTime = BuildFrameTimeSecFromSpectrogram(sp);
     if (frameTime.size() != sp.timeBins) {
-        r.message = "frameTimeSec 构造失败";
+        r.message = "frameTimeSec 构建失败";
         return r;
     }
 
@@ -296,30 +275,17 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
 
     ApplyTimeOffset(frameTime, kManualTimeOffsetSec + halfWindowOffset);
 
-    std::cout << "[DEBUG] single-export mode:"
-        << " shift=" << kManualTimeOffsetSec
-        << ", halfWindowOffset=" << halfWindowOffset
-        << ", totalOffset=" << (kManualTimeOffsetSec + halfWindowOffset)
-        << std::endl;
-
-    // 7) 映射到RPM
     RpmSpectrogram rpmSp = FFTvsRpmMapper::MapTimeToRpm(
-        sp,
-        frameTime,
-        rpmOnMainAxis,
-        sig.fs,
-        (job.rpmBinStep > 0.0 ? job.rpmBinStep : 50.0)
-    );
+        sp, frameTime, rpmOnMainAxis, sig.fs,
+        (job.rpmBinStep > 0.0 ? job.rpmBinStep : 50.0));
 
     if (rpmSp.rpmBins == 0 || rpmSp.freqBins == 0 || rpmSp.dataDb.empty()) {
         r.message = "FFT vs rpm 映射失败";
         return r;
     }
 
-    // 8) 单文件导出
     const std::string chName = sig.channelName.empty() ? "CH1" : sig.channelName;
     const std::string outBasePath = sig.sourcePath.empty() ? file.path : sig.sourcePath;
-
     const std::string suffix = kUseOrderTracking
         ? "_" + chName + "_order_vs_rpm.csv"
         : "_" + chName + "_fft_vs_rpm.csv";
@@ -330,7 +296,19 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
         return r;
     }
 
-    std::cout << "[DEBUG] export done: " << r.fftCsvPath << std::endl;
+    // 内存3D结果
+    r.heatmapFreqFrames = BuildFreqFrames(rpmSp);
+    r.heatmapAmpFrames = BuildAmpFrames(rpmSp);
+
+    if (r.heatmapFreqFrames.size() != r.heatmapAmpFrames.size()) {
+        r.message = "内存热图维度不一致";
+        return r;
+    }
+
+    r.heatmapIsDb = true;
+    r.heatmapXUnit = "Hz";
+    r.heatmapYUnit = "RPM";
+    r.heatmapZUnit = "dB";
 
     r.ok = true;
     r.message = "OK";

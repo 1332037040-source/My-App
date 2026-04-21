@@ -5,6 +5,7 @@
 #include "flows/FFTvsRpmFlow.h"
 #include "flows/OctaveFlow.h"
 #include "flows/LevelVsTimeFlow.h"
+#include "flows/LevelVsRpmFlow.h"
 
 JobResult FFTExecutor::RunOne(const Job& job, const FileItem& file)
 {
@@ -32,7 +33,13 @@ JobResult FFTExecutor::RunOne(const Job& job, const FileItem& file)
         return flow.Run(job, file);
     }
 
-    // 5) Octave
+    // 5) Level vs RPM
+    if (job.mode == AnalysisMode::LEVEL_VS_RPM) {
+        LevelVsRpmFlow flow;
+        return flow.Run(job, file);
+    }
+
+    // 6) Octave
     if (job.mode == AnalysisMode::OCTAVE_1_1 || job.mode == AnalysisMode::OCTAVE_1_3) {
         OctaveFlow flow;
         return flow.Run(job, file);

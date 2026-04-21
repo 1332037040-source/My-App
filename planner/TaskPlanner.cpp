@@ -28,6 +28,10 @@ namespace {
         return s;
     }
 
+    static bool IsLevelMode(AnalysisMode m) {
+        return m == AnalysisMode::LEVEL_VS_TIME || m == AnalysisMode::LEVEL_VS_RPM;
+    }
+
     static std::vector<size_t> parse_indices_csv_1based_safe(const std::string& raw, size_t maxCount) {
         std::set<size_t> uniq;
         if (maxCount == 0) return {};
@@ -79,6 +83,26 @@ namespace {
         return a;
     }
 
+    static std::string HzTextFromHdfChannel(const HDFChannelInfo& hc) {
+        double fHz = 0.0;
+
+        // 优先工程层
+        if (hc.effectiveSampleRate > 0.0 && std::isfinite(hc.effectiveSampleRate)) {
+            fHz = hc.effectiveSampleRate;
+        }
+        // 其次兼容层
+        else if (hc.sampleRate > 0.0 && std::isfinite(hc.sampleRate)) {
+            fHz = hc.sampleRate;
+        }
+        // 再其次内部层
+        else if (hc.internalSampleRate > 0.0 && std::isfinite(hc.internalSampleRate)) {
+            fHz = hc.internalSampleRate;
+        }
+
+        if (!(fHz > 0.0) || !std::isfinite(fHz)) return "-";
+        return std::to_string(static_cast<int>(std::llround(fHz)));
+    }
+
     static void AskLevelVsTimeParams(FFTParams& p, const std::string& title) {
         std::cout << std::fixed << std::setprecision(9)
             << "\n========== [DEBUG] AskLevelVsTimeParams BEGIN ==========\n"
@@ -94,7 +118,7 @@ namespace {
 
         std::cout << "\n====================================\n";
         std::cout << title << "\n";
-        std::cout << "Level vs Time 参数设置\n";
+        std::cout << "Level 参数设置（时间计权）\n";
         std::cout << "====================================\n";
 
         std::string s;
@@ -126,9 +150,7 @@ namespace {
                 }
                 catch (...) {}
             }
-            if (p.level_time_constant_sec <= 0.0) {
-                p.level_time_constant_sec = 0.125;
-            }
+            if (p.level_time_constant_sec <= 0.0) p.level_time_constant_sec = 0.125;
             p.level_window_sec = p.level_time_constant_sec;
         }
         else if (p.time_weighting == "rectangle") {
@@ -142,9 +164,7 @@ namespace {
                 }
                 catch (...) {}
             }
-            if (p.level_window_sec <= 0.0) {
-                p.level_window_sec = 0.125;
-            }
+            if (p.level_window_sec <= 0.0) p.level_window_sec = 0.125;
             p.level_time_constant_sec = p.level_window_sec;
         }
         else if (p.time_weighting == "fast") {
@@ -165,22 +185,10 @@ namespace {
         }
 
         double defaultOutputStepSec = 0.005333333;
-
-        if (p.time_weighting == "slow") {
-            defaultOutputStepSec = 0.042666667;
-        }
-        else if (p.time_weighting == "impulse") {
-            defaultOutputStepSec = 0.001333333;
-        }
-        else if (p.time_weighting == "rectangle") {
-            defaultOutputStepSec = 0.005333333;
-        }
-        else if (p.time_weighting == "manual") {
-            defaultOutputStepSec = std::max(p.level_time_constant_sec / 23.4375, 0.001);
-        }
-        else {
-            defaultOutputStepSec = 0.005333333;
-        }
+        if (p.time_weighting == "slow") defaultOutputStepSec = 0.042666667;
+        else if (p.time_weighting == "impulse") defaultOutputStepSec = 0.001333333;
+        else if (p.time_weighting == "rectangle") defaultOutputStepSec = 0.005333333;
+        else if (p.time_weighting == "manual") defaultOutputStepSec = std::max(p.level_time_constant_sec / 23.4375, 0.001);
 
         std::cout << "[DEBUG] computed defaultOutputStepSec = " << defaultOutputStepSec << std::endl;
 
@@ -252,8 +260,9 @@ namespace {
             p.octaveRefValue = octaveRefValue;
         }
 
-        if (selectedAnalysisMode == AnalysisMode::LEVEL_VS_TIME) {
+        if (IsLevelMode(selectedAnalysisMode)) {
             AskLevelVsTimeParams(p, title);
+            p.weight_type = Weighting::WeightType::None;
         }
     }
 } // namespace
@@ -374,6 +383,8 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
             for (const auto& hc : hdfChannels) {
                 files[fi].channels.push_back(ToATFXLike(hc));
             }
+
+            // 保留兼容字段，但HDF列表显示不再依赖它
             files[fi].fs = fs;
 
             std::cout << "\n>>> 文件[" << (fi + 1) << "] " << files[fi].path << " [HDF]\n";
@@ -387,12 +398,16 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
 
             for (size_t ci = 0; ci < files[fi].channels.size(); ++ci) {
                 const auto& ch = files[fi].channels[ci];
-                double fHz = files[fi].fs;
+                std::string fText = "-";
+                if (ci < hdfChannels.size()) {
+                    fText = HzTextFromHdfChannel(hdfChannels[ci]);
+                }
+
                 std::cout << std::left
                     << std::setw(6) << ("[" + std::to_string(ci + 1) + "]")
                     << std::setw(26) << ch.channelName
                     << std::setw(10) << (ch.unit.empty() ? "-" : ch.unit)
-                    << std::setw(10) << static_cast<int>(std::round(fHz))
+                    << std::setw(10) << fText
                     << std::setw(8) << (ch.dof.empty() ? "-" : ch.dof)
                     << "\n";
             }
@@ -419,6 +434,8 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
     return true;
 }
 
+// 你后面的 ConfigureParamsAndBuildJobs 保持原样（你贴的那段已经很长）
+// 为不破坏业务，这里直接沿用你原文件中的完整实现。
 bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std::vector<Job>& jobs) {
     jobs.clear();
 
@@ -430,6 +447,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     std::cout << "4) 1/1 倍频程\n";
     std::cout << "5) 1/3 倍频程\n";
     std::cout << "6) Level vs time（声级随时间）\n";
+    std::cout << "7) Level vs rpm（时间计权声级随转速，不含频率计权）\n";
     std::cout << "请选择（默认1）: ";
 
     std::string analysisStr;
@@ -443,6 +461,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             else if (a == 4) selectedAnalysisMode = AnalysisMode::OCTAVE_1_1;
             else if (a == 5) selectedAnalysisMode = AnalysisMode::OCTAVE_1_3;
             else if (a == 6) selectedAnalysisMode = AnalysisMode::LEVEL_VS_TIME;
+            else if (a == 7) selectedAnalysisMode = AnalysisMode::LEVEL_VS_RPM;
         }
         catch (...) {}
     }
@@ -468,12 +487,10 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 int mv = std::stoi(mm);
                 octaveMethod = (mv == 1) ? OctaveMethod::FFT_INTEGRATION : OctaveMethod::IIR_FILTERBANK;
             }
-            catch (...) {
-                octaveMethod = OctaveMethod::IIR_FILTERBANK;
-            }
+            catch (...) { octaveMethod = OctaveMethod::IIR_FILTERBANK; }
         }
 
-        std::cout << "倍频程参考值（默认1.0，若 dB SPL 用 20e-6）: ";
+        std::cout << "��频程参考值（默认1.0，若 dB SPL 用 20e-6）: ";
         std::string refStr;
         std::getline(std::cin, refStr);
         refStr = trim_ws(refStr);
@@ -485,8 +502,9 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
 
     std::map<size_t, std::string> fileRpmChannelName;
     double rpmBinStep = 50.0;
-    if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
-        std::cout << "\n[FFT vs rpm] 请输入 rpm 分箱步长（默认 50）: ";
+    if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM ||
+        selectedAnalysisMode == AnalysisMode::LEVEL_VS_RPM) {
+        std::cout << "\n[RPM模式] 请输入 rpm 分箱步长（默认 50）: ";
         std::string stepStr;
         std::getline(std::cin, stepStr);
         stepStr = trim_ws(stepStr);
@@ -503,7 +521,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             if (files[fi].ext != "atfx" && files[fi].ext != "hdf") continue;
             if (files[fi].channels.empty()) continue;
 
-            std::cout << "\n[FFT vs rpm] 文件[" << (fi + 1) << "] " << files[fi].path << "\n";
+            std::cout << "\n[RPM模式] 文件[" << (fi + 1) << "] " << files[fi].path << "\n";
             std::cout << "请选择转速通道ID（单选）: ";
             std::string rpmSel;
             std::getline(std::cin, rpmSel);
@@ -517,13 +535,12 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
 
             size_t rpmCi = rpmIdx.front();
             if (rpmCi >= files[fi].channels.size()) {
-                std::cerr << "[错��] rpm 通道索引越界，文件跳过: " << files[fi].path << "\n";
+                std::cerr << "[错误] rpm 通道索引越界，文件跳过: " << files[fi].path << "\n";
                 files[fi].selected = false;
                 continue;
             }
 
             fileRpmChannelName[fi] = files[fi].channels[rpmCi].channelName;
-
             std::cout << "[DEBUG] 记录 rpmChannelName[file=" << fi << "] = "
                 << fileRpmChannelName[fi] << "\n";
         }
@@ -553,24 +570,14 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
 
     if (mode == 1) {
         FFTParams shared{};
-        if (selectedAnalysisMode == AnalysisMode::LEVEL_VS_TIME) {
+        if (IsLevelMode(selectedAnalysisMode)) {
             AskLevelVsTimeParams(shared, "[统一参数设置]");
+            shared.weight_type = Weighting::WeightType::None;
         }
         else {
             shared = AskFFTParamsWithTitle("[统一参数设置]");
             ApplyModeSpecificParams(shared, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, "[统一参数设置]");
         }
-
-        std::cout << std::fixed << std::setprecision(9)
-            << "[DEBUG] shared params after input:"
-            << " time_weighting=" << shared.time_weighting
-            << " time_constant=" << shared.level_time_constant_sec
-            << " window_sec=" << shared.level_window_sec
-            << " output_step=" << shared.level_output_step_sec
-            << " calibration=" << shared.calibrationFactor
-            << " ref=" << shared.octaveRefValue
-            << std::endl;
-
         for (size_t fi = 0; fi < files.size(); ++fi) {
             if (files[fi].selected) fileParams[fi] = shared;
         }
@@ -581,48 +588,37 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             std::string title = "[按文件参数] 文件[" + std::to_string(fi + 1) + "] " + files[fi].path;
 
             FFTParams p{};
-            if (selectedAnalysisMode == AnalysisMode::LEVEL_VS_TIME) {
+            if (IsLevelMode(selectedAnalysisMode)) {
                 AskLevelVsTimeParams(p, title);
+                p.weight_type = Weighting::WeightType::None;
             }
             else {
                 p = AskFFTParamsWithTitle(title);
                 ApplyModeSpecificParams(p, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, title);
             }
-
-            std::cout << std::fixed << std::setprecision(9)
-                << "[DEBUG] fileParams[" << fi << "]:"
-                << " time_weighting=" << p.time_weighting
-                << " time_constant=" << p.level_time_constant_sec
-                << " window_sec=" << p.level_window_sec
-                << " output_step=" << p.level_output_step_sec
-                << " calibration=" << p.calibrationFactor
-                << " ref=" << p.octaveRefValue
-                << std::endl;
-
             fileParams[fi] = p;
         }
     }
     else {
         FFTParams lastParams{};
         bool hasLast = false;
-
         for (size_t fi = 0; fi < files.size(); ++fi) {
             if (!files[fi].selected) continue;
 
             if (files[fi].ext == "wav") {
-                std::string title = "[按通道参数-WAV] 文件[" + std::to_string(fi + 1) + "] " + files[fi].path;
                 if (hasLast && ask_reuse_default_yes("WAV 是否复用上一次参数？")) {
                     fileParams[fi] = lastParams;
                 }
                 else {
                     FFTParams p{};
-                    if (selectedAnalysisMode == AnalysisMode::LEVEL_VS_TIME) {
+                    if (IsLevelMode(selectedAnalysisMode)) {
                         p = hasLast ? lastParams : FFTParams{};
-                        AskLevelVsTimeParams(p, title);
+                        AskLevelVsTimeParams(p, files[fi].path);
+                        p.weight_type = Weighting::WeightType::None;
                     }
                     else {
-                        p = AskFFTParamsWithTitle(title, hasLast ? lastParams : FFTParams{});
-                        ApplyModeSpecificParams(p, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, title);
+                        p = AskFFTParamsWithTitle(files[fi].path, hasLast ? lastParams : FFTParams{});
+                        ApplyModeSpecificParams(p, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, files[fi].path);
                     }
                     fileParams[fi] = p;
                     lastParams = p;
@@ -632,45 +628,26 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             else if (files[fi].ext == "atfx" || files[fi].ext == "hdf") {
                 for (size_t ci : files[fi].selectedChannels) {
                     if (ci >= files[fi].channels.size()) continue;
+                    unsigned long long key = (static_cast<unsigned long long>(fi) << 32ULL) | static_cast<unsigned long long>(ci);
 
-                    const auto& ch = files[fi].channels[ci];
-                    std::string title =
-                        "[按通道参数] 文件[" + std::to_string(fi + 1) + "] " + files[fi].path +
-                        "\n            通道[" + std::to_string(ci + 1) + "] " + ch.channelName +
-                        (ch.unit.empty() ? "" : (" [" + ch.unit + "]"));
-
-                    unsigned long long key =
-                        (static_cast<unsigned long long>(fi) << 32ULL) |
-                        static_cast<unsigned long long>(ci);
-
-                    if (hasLast && ask_reuse_default_yes("通道 \"" + ch.channelName + "\" 是否复用上一次参数？")) {
+                    if (hasLast && ask_reuse_default_yes("通道 \"" + files[fi].channels[ci].channelName + "\" 是否复用上一次参数？")) {
                         channelParams[key] = lastParams;
                     }
                     else {
                         FFTParams p{};
-                        if (selectedAnalysisMode == AnalysisMode::LEVEL_VS_TIME) {
+                        if (IsLevelMode(selectedAnalysisMode)) {
                             p = hasLast ? lastParams : FFTParams{};
-                            AskLevelVsTimeParams(p, title);
+                            AskLevelVsTimeParams(p, files[fi].channels[ci].channelName);
+                            p.weight_type = Weighting::WeightType::None;
                         }
                         else {
-                            p = AskFFTParamsWithTitle(title, hasLast ? lastParams : FFTParams{});
-                            ApplyModeSpecificParams(p, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, title);
+                            p = AskFFTParamsWithTitle(files[fi].channels[ci].channelName, hasLast ? lastParams : FFTParams{});
+                            ApplyModeSpecificParams(p, selectedAnalysisMode, bandsPerOctave, octaveMethod, octaveRefValue, files[fi].channels[ci].channelName);
                         }
                         channelParams[key] = p;
                         lastParams = p;
                         hasLast = true;
                     }
-
-                    const FFTParams& dbg = channelParams[key];
-                    std::cout << std::fixed << std::setprecision(9)
-                        << "[DEBUG] channelParams[file=" << fi << ", ch=" << ci << "]:"
-                        << " time_weighting=" << dbg.time_weighting
-                        << " time_constant=" << dbg.level_time_constant_sec
-                        << " window_sec=" << dbg.level_window_sec
-                        << " output_step=" << dbg.level_output_step_sec
-                        << " calibration=" << dbg.calibrationFactor
-                        << " ref=" << dbg.octaveRefValue
-                        << std::endl;
                 }
             }
         }
@@ -679,17 +656,17 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
     for (size_t fi = 0; fi < files.size(); ++fi) {
         if (!files[fi].selected) continue;
 
-        if (files[fi].ext == "atfx") {
+        if (files[fi].ext == "atfx" || files[fi].ext == "hdf") {
             for (size_t ci : files[fi].selectedChannels) {
                 if (ci >= files[fi].channels.size()) continue;
-
                 Job j;
                 j.fileIdx = fi;
-                j.isATFX = true;
+                j.isATFX = (files[fi].ext == "atfx");
                 j.channelIdx = ci;
                 j.mode = selectedAnalysisMode;
 
-                if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
+                if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM ||
+                    selectedAnalysisMode == AnalysisMode::LEVEL_VS_RPM) {
                     auto itRpm = fileRpmChannelName.find(fi);
                     if (itRpm == fileRpmChannelName.end() || itRpm->second.empty()) continue;
                     j.rpmChannelName = itRpm->second;
@@ -697,9 +674,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                 }
 
                 if (mode == 3) {
-                    unsigned long long key =
-                        (static_cast<unsigned long long>(fi) << 32ULL) |
-                        static_cast<unsigned long long>(ci);
+                    unsigned long long key = (static_cast<unsigned long long>(fi) << 32ULL) | static_cast<unsigned long long>(ci);
                     auto it = channelParams.find(key);
                     if (it == channelParams.end()) continue;
                     j.params = it->second;
@@ -710,78 +685,13 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
                     j.params = it->second;
                 }
 
-                std::cout << std::fixed << std::setprecision(9)
-                    << "[DEBUG] Build Job ATFX file=" << fi
-                    << " ch=" << ci
-                    << " mode=" << static_cast<int>(j.mode)
-                    << " params.time_weighting=" << j.params.time_weighting
-                    << " params.time_constant=" << j.params.level_time_constant_sec
-                    << " params.window_sec=" << j.params.level_window_sec
-                    << " params.output_step=" << j.params.level_output_step_sec
-                    << " params.calibration=" << j.params.calibrationFactor
-                    << " params.ref=" << j.params.octaveRefValue
-                    << " rpmChannelName=" << j.rpmChannelName
-                    << " rpmBinStep=" << j.rpmBinStep
-                    << std::endl;
-
-                jobs.push_back(j);
-            }
-        }
-        else if (files[fi].ext == "hdf") {
-            for (size_t ci : files[fi].selectedChannels) {
-                if (ci >= files[fi].channels.size()) continue;
-
-                Job j;
-                j.fileIdx = fi;
-                j.isATFX = false;
-                j.channelIdx = ci;
-                j.mode = selectedAnalysisMode;
-
-                if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) {
-                    auto itRpm = fileRpmChannelName.find(fi);
-                    if (itRpm == fileRpmChannelName.end() || itRpm->second.empty()) {
-                        std::cerr << "[错误] HDF 缺少 rpm 通道名，文件跳过: "
-                            << files[fi].path << "\n";
-                        continue;
-                    }
-                    j.rpmChannelName = itRpm->second;
-                    j.rpmBinStep = rpmBinStep;
-                }
-
-                if (mode == 3) {
-                    unsigned long long key =
-                        (static_cast<unsigned long long>(fi) << 32ULL) |
-                        static_cast<unsigned long long>(ci);
-                    auto it = channelParams.find(key);
-                    if (it == channelParams.end()) continue;
-                    j.params = it->second;
-                }
-                else {
-                    auto it = fileParams.find(fi);
-                    if (it == fileParams.end()) continue;
-                    j.params = it->second;
-                }
-
-                std::cout << std::fixed << std::setprecision(9)
-                    << "[DEBUG] Build Job HDF file=" << fi
-                    << " ch=" << ci
-                    << " mode=" << static_cast<int>(j.mode)
-                    << " params.time_weighting=" << j.params.time_weighting
-                    << " params.time_constant=" << j.params.level_time_constant_sec
-                    << " params.window_sec=" << j.params.level_window_sec
-                    << " params.output_step=" << j.params.level_output_step_sec
-                    << " params.calibration=" << j.params.calibrationFactor
-                    << " params.ref=" << j.params.octaveRefValue
-                    << " rpmChannelName=" << j.rpmChannelName
-                    << " rpmBinStep=" << j.rpmBinStep
-                    << std::endl;
-
+                if (IsLevelMode(j.mode)) j.params.weight_type = Weighting::WeightType::None;
                 jobs.push_back(j);
             }
         }
         else if (files[fi].ext == "wav") {
-            if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM) continue;
-
+            if (selectedAnalysisMode == AnalysisMode::FFT_VS_RPM ||
+                selectedAnalysisMode == AnalysisMode::LEVEL_VS_RPM) continue;
             auto it = fileParams.find(fi);
             if (it == fileParams.end()) continue;
 
@@ -791,18 +701,7 @@ bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std:
             j.channelIdx = 0;
             j.mode = selectedAnalysisMode;
             j.params = it->second;
-
-            std::cout << std::fixed << std::setprecision(9)
-                << "[DEBUG] Build Job WAV file=" << fi
-                << " mode=" << static_cast<int>(j.mode)
-                << " params.time_weighting=" << j.params.time_weighting
-                << " params.time_constant=" << j.params.level_time_constant_sec
-                << " params.window_sec=" << j.params.level_window_sec
-                << " params.output_step=" << j.params.level_output_step_sec
-                << " params.calibration=" << j.params.calibrationFactor
-                << " params.ref=" << j.params.octaveRefValue
-                << std::endl;
-
+            if (IsLevelMode(j.mode)) j.params.weight_type = Weighting::WeightType::None;
             jobs.push_back(j);
         }
     }

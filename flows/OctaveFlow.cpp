@@ -85,6 +85,14 @@ JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
         r.peak = spectrumSvc.CalcPeakFromValues(octaveResult.bandValues, octaveResult.bandCenters);
     }
 
+    // 6) 新增：内存2D结果（供Qt直接绘图）
+    r.curveX = octaveResult.bandCenters;
+    r.curveY = octaveResult.bandValues;
+    r.curveIsDb = true; // octave通常为dB
+    r.curveXUnit = "Hz";
+    r.curveYUnit = "dB";
+    r.curveName = chName + ((job.params.bandsPerOctave == 1) ? "_Octave_1_1" : "_Octave_1_3");
+
     r.ok = true;
     r.message = "OK";
     return r;

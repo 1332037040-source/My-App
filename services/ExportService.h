@@ -5,6 +5,7 @@
 #include "../domain/RpmSpectrogram.h"
 #include "../features/octave_band/OctaveAnalyzer.h"
 #include "../features/level_vs_time/LevelVsTimeAnalyzer.h"
+#include "../features/level_vs_rpm/LevelVsRpmAnalyzer.h"
 #include <string>
 #include <vector>
 
@@ -38,6 +39,11 @@ public:
 
     // 导出 Level vs Time 结果
     bool WriteLevelVsTime(const LevelVsTimeAnalyzer::LevelSeries& series,
+        const std::string& outPath,
+        std::string& err) const;
+
+    // 导出 Level vs RPM 结果
+    bool WriteLevelVsRpm(const LevelVsRpmSeries& series,
         const std::string& outPath,
         std::string& err) const;
 };

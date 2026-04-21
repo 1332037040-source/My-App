@@ -31,6 +31,9 @@ namespace
         if (mode == "level_vs_time") {
             return AnalysisMode::LEVEL_VS_TIME;
         }
+        if (mode == "level_vs_rpm") {
+            return AnalysisMode::LEVEL_VS_RPM;
+        }
 
         return AnalysisMode::FFT;
     }
@@ -99,7 +102,43 @@ namespace
         errorMessage = "unsupported file type for channel selection: " + filePath;
         return false;
     }
-}
+
+    void fillCurve2DIfPresent(const JobResult& jr, CoreAnalysisResult& result)
+    {
+        if (jr.curveX.empty() || jr.curveY.empty()) {
+            return;
+        }
+        if (jr.curveX.size() != jr.curveY.size()) {
+            return;
+        }
+
+        result.hasCurve2D = true;
+        result.curve2D.x = jr.curveX;
+        result.curve2D.y = jr.curveY;
+        result.curve2D.isDb = jr.curveIsDb;
+        result.curve2D.xUnit = jr.curveXUnit.empty() ? "Hz" : jr.curveXUnit;
+        result.curve2D.yUnit = jr.curveYUnit;
+        result.curve2D.name = jr.curveName;
+    }
+
+    void fillHeatmap3DIfPresent(const JobResult& jr, CoreAnalysisResult& result)
+    {
+        if (jr.heatmapFreqFrames.empty() || jr.heatmapAmpFrames.empty()) {
+            return;
+        }
+        if (jr.heatmapFreqFrames.size() != jr.heatmapAmpFrames.size()) {
+            return;
+        }
+
+        result.hasHeatmap3D = true;
+        result.heatmap3D.freqFrames = jr.heatmapFreqFrames;
+        result.heatmap3D.ampFrames = jr.heatmapAmpFrames;
+        result.heatmap3D.isDb = jr.heatmapIsDb;
+        result.heatmap3D.xUnit = jr.heatmapXUnit.empty() ? "Hz" : jr.heatmapXUnit;
+        result.heatmap3D.yUnit = jr.heatmapYUnit;
+        result.heatmap3D.zUnit = jr.heatmapZUnit;
+    }
+} // namespace
 
 bool CoreAnalysisFacade::validateRequest(const CoreAnalysisRequest& request, CoreAnalysisResult& result)
 {
@@ -140,9 +179,16 @@ bool CoreAnalysisFacade::validateRequest(const CoreAnalysisRequest& request, Cor
         mode != "octave" &&
         mode != "octave_1_1" &&
         mode != "octave_1_3" &&
-        mode != "level_vs_time") {
+        mode != "level_vs_time" &&
+        mode != "level_vs_rpm") {
         result.success = false;
         result.message = "unsupported analysisMode: " + request.analysisMode;
+        return false;
+    }
+
+    if ((mode == "fft_vs_rpm" || mode == "level_vs_rpm") && request.rpmChannelName.empty()) {
+        result.success = false;
+        result.message = "rpmChannelName is required for mode: " + mode;
         return false;
     }
 
@@ -249,15 +295,25 @@ CoreAnalysisResult CoreAnalysisFacade::run(const CoreAnalysisRequest& request)
             result.generatedFiles.push_back(jr.levelVsTimeCsvPath);
         }
 
+        if (!jr.levelVsRpmCsvPath.empty()) {
+            result.levelVsRpmCsv = jr.levelVsRpmCsvPath;
+            result.generatedFiles.push_back(jr.levelVsRpmCsvPath);
+        }
+
         result.peakFrequency = jr.peak.freq;
         result.peakValue = jr.peak.mag;
+
+        // 新增：内存结果透传（前提：JobResult 已填充对应字段）
+        fillCurve2DIfPresent(jr, result);
+        fillHeatmap3DIfPresent(jr, result);
 
         if (!jr.ok && !jr.message.empty()) {
             result.message = jr.message;
         }
     }
 
-    if (runReq.mode == AnalysisMode::FFT_VS_TIME) {
+    if (runReq.mode == AnalysisMode::FFT_VS_TIME ||
+        runReq.mode == AnalysisMode::FFT_VS_RPM) {
         result.spectrogramCsv = result.fftCsv;
     }
     else if (runReq.mode == AnalysisMode::OCTAVE_1_1 ||

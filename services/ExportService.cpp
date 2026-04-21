@@ -205,3 +205,27 @@ bool ExportService::WriteLevelVsTime(const LevelVsTimeAnalyzer::LevelSeries& ser
 
     return true;
 }
+bool ExportService::WriteLevelVsRpm(const LevelVsRpmSeries& series,
+    const std::string& outPath,
+    std::string& err) const
+{
+    std::ofstream ofs(outPath);
+    if (!ofs.is_open()) {
+        err = "无法打开输出文件: " + outPath;
+        return false;
+    }
+
+    ofs << "rpm,level_db\n";
+    ofs << std::fixed << std::setprecision(6);
+
+    for (const auto& p : series.points) {
+        ofs << p.rpm << "," << p.levelDb << "\n";
+    }
+
+    if (!ofs.good()) {
+        err = "写入Level vs RPM失败: " + outPath;
+        return false;
+    }
+
+    return true;
+}

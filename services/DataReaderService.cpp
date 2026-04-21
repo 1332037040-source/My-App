@@ -5,6 +5,7 @@
 #include <limits>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 
 namespace
 {
@@ -67,8 +68,20 @@ namespace
         return s;
     }
 
-    // HDF里某些文件头给的是扫描时基(如289k)，而声学通道做FFT应使用有效采样率(如48k)。
-    // 这里做一个保守对齐：仅对Pa单位/声学通道名且fs落在289k附近时，修正到48k。
+    static bool IsRpmLikeChannel(const std::string& channelName, const std::string& unit)
+    {
+        const std::string n = ToLowerCopy(channelName);
+        const std::string u = ToLowerCopy(unit);
+
+        return
+            (n.find("rpm") != std::string::npos) ||
+            (n.find("tacho") != std::string::npos) ||
+            (n.find("tach") != std::string::npos) ||
+            (n.find("speed") != std::string::npos) ||
+            (u.find("rpm") != std::string::npos);
+    }
+
+    // 仅作为 fallback（当 HDFReader 未拿到 trusted fs 时）
     static double NormalizeHdfFsForAcousticChannel(
         const std::string& channelName,
         const std::string& unit,
@@ -79,17 +92,31 @@ namespace
 
         const bool isAcoustic =
             (n.find("mic") != std::string::npos) ||
+            (n.find("microphone") != std::string::npos) ||
+            (n.find("acoustic") != std::string::npos) ||
+            (n.find("pressure") != std::string::npos) ||
             (n.find("hms") != std::string::npos) ||
-            (u == "pa");
+            (u.find("pa") != std::string::npos);
 
-        // 仅在明显是扫描时基的范围内修正，避免误伤
         if (isAcoustic && fs > 200000.0 && fs < 400000.0) {
-            std::cout << "[DEBUG] HDF fs override for acoustic channel: "
-                << fs << " -> 48000" << std::endl;
+            std::cout << "[WARN] HDF fs fallback normalization for acoustic channel: "
+                << fs << " -> 48000 (untrusted fs fallback path)" << std::endl;
             return 48000.0;
         }
 
         return fs;
+    }
+
+    static bool IsFinitePositive(double v)
+    {
+        return std::isfinite(v) && v > 0.0;
+    }
+
+    static void CleanupRpm(std::vector<double>& rpm)
+    {
+        for (double& v : rpm) {
+            if (!std::isfinite(v) || v < 0.0) v = 0.0;
+        }
     }
 }
 
@@ -109,9 +136,6 @@ bool DataReaderService::ReadSignal(const Job& job,
         << ", mode=" << static_cast<int>(job.mode)
         << std::endl;
 
-    // 1) job.isATFX 优先
-    // 2) file.ext == "hdf"
-    // 3) 其他按 wav 处理
     if (job.isATFX) {
         return ReadATFX(job, file, out, err);
     }
@@ -212,7 +236,9 @@ bool DataReaderService::ReadHDF(const Job& job,
 
     std::vector<float> signal;
     double fs = 0.0;
-    if (!hdf.ReadChannelData(file.path, ch.channelName, signal, fs)) {
+    bool fsTrusted = false;
+
+    if (!hdf.ReadChannelDataWithFsQuality(file.path, ch.channelName, signal, fs, fsTrusted)) {
         err = "读取HDF通道失败";
         return false;
     }
@@ -224,12 +250,16 @@ bool DataReaderService::ReadHDF(const Job& job,
         return false;
     }
     if (fs <= 0.0) {
-        err = "HDF非时域数据或采样率无效，当前流程仅支持时域FFT";
+        err = "HDF采样率无效";
         return false;
     }
 
-    // 关键：对声学通道做有效采样率归一（与Artemis对齐）
-    fs = NormalizeHdfFsForAcousticChannel(ch.channelName, ch.unit, fs);
+    const bool isRpmLike = IsRpmLikeChannel(ch.channelName, ch.unit);
+
+    // 只有在 untrusted fallback 才允许兜底修正；trusted 不动
+    if (!fsTrusted && !isRpmLike) {
+        fs = NormalizeHdfFsForAcousticChannel(ch.channelName, ch.unit, fs);
+    }
 
     out.samples.assign(signal.begin(), signal.end());
     out.fs = fs;
@@ -239,6 +269,7 @@ bool DataReaderService::ReadHDF(const Job& job,
 
     std::cout << "[DEBUG] ReadHDF done:"
         << " fs=" << out.fs
+        << ", fsTrusted=" << fsTrusted
         << ", samples=" << out.samples.size()
         << ", channel=" << out.channelName
         << ", unit=" << out.unit
@@ -283,4 +314,97 @@ bool DataReaderService::ReadWAV(const FileItem& file,
 
     PrintVectorPreview(out.samples, "WAV signal out.samples");
     return true;
+}
+
+bool DataReaderService::ReadRpmSignal(const Job& job,
+    const FileItem& file,
+    std::vector<double>& rpm,
+    double& rpmFs,
+    std::string& err) const
+{
+    rpm.clear();
+    rpmFs = 0.0;
+    err.clear();
+
+    const std::string rpmName = job.rpmChannelName;
+    if (rpmName.empty()) {
+        err = "rpmChannelName为空";
+        return false;
+    }
+
+    std::cout << "[DEBUG] ReadRpmSignal:"
+        << " file=" << file.path
+        << ", ext=" << file.ext
+        << ", job.isATFX=" << job.isATFX
+        << ", rpmChannelName=" << rpmName
+        << std::endl;
+
+    if (job.isATFX || file.ext == "atfx") {
+        FFT11_ATFXReader atfx;
+        std::vector<float> raw;
+        double fs = 0.0;
+
+        if (!atfx.ReadChannelData(file.path, rpmName, raw, fs)) {
+            err = "读取ATFX RPM通道失败: " + rpmName;
+            return false;
+        }
+
+        if (raw.empty()) {
+            err = "ATFX RPM通道数据为空: " + rpmName;
+            return false;
+        }
+        if (!IsFinitePositive(fs)) {
+            err = "ATFX RPM采样率无效";
+            return false;
+        }
+
+        rpm.assign(raw.begin(), raw.end());
+        CleanupRpm(rpm);
+        rpmFs = fs;
+
+        std::cout << "[DEBUG] ReadRpmSignal(ATFX) done:"
+            << " rpmFs=" << rpmFs
+            << ", size=" << rpm.size()
+            << std::endl;
+        PrintVectorPreview(rpm, "ATFX rpm");
+
+        return true;
+    }
+
+    if (file.ext == "hdf") {
+        FFT11_HDFReader hdf;
+        std::vector<float> raw;
+        double fs = 0.0;
+        bool fsTrusted = false;
+
+        if (!hdf.ReadChannelDataWithFsQuality(file.path, rpmName, raw, fs, fsTrusted)) {
+            err = "读取HDF RPM通道失败: " + rpmName;
+            return false;
+        }
+
+        if (raw.empty()) {
+            err = "HDF RPM通道数据为空: " + rpmName;
+            return false;
+        }
+        if (!IsFinitePositive(fs)) {
+            err = "HDF RPM采样率无效";
+            return false;
+        }
+
+        rpm.assign(raw.begin(), raw.end());
+        CleanupRpm(rpm);
+        rpmFs = fs;
+
+        std::cout << "[DEBUG] ReadRpmSignal(HDF) done:"
+            << " rpmFs=" << rpmFs
+            << ", fsTrusted=" << fsTrusted
+            << ", size=" << rpm.size()
+            << std::endl;
+        PrintVectorPreview(rpm, "HDF rpm");
+
+        return true;
+    }
+
+    err = "WAV不支持按通道读取RPM，请使用ATFX/HDF";
+    return false;
 }

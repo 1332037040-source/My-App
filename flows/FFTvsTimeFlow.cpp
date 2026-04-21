@@ -6,6 +6,43 @@
 #include "../core/Utils.h"
 
 #include <string>
+#include <vector>
+
+namespace
+{
+    std::vector<std::vector<double>> buildFreqFramesFromSpectrogram(const Spectrogram& sp)
+    {
+        std::vector<std::vector<double>> freqFrames;
+        if (sp.timeBins == 0 || sp.freqBins == 0 || sp.fs <= 0.0 || sp.blockSize == 0) {
+            return freqFrames;
+        }
+
+        freqFrames.resize(sp.timeBins, std::vector<double>(sp.freqBins, 0.0));
+        const double df = sp.fs / static_cast<double>(sp.blockSize);
+        for (size_t t = 0; t < sp.timeBins; ++t) {
+            for (size_t f = 0; f < sp.freqBins; ++f) {
+                freqFrames[t][f] = static_cast<double>(f) * df;
+            }
+        }
+        return freqFrames;
+    }
+
+    std::vector<std::vector<double>> buildAmpFramesFromSpectrogramDb(const Spectrogram& sp)
+    {
+        std::vector<std::vector<double>> ampFrames;
+        if (sp.timeBins == 0 || sp.freqBins == 0 || sp.dataDb.empty()) {
+            return ampFrames;
+        }
+
+        ampFrames.resize(sp.timeBins, std::vector<double>(sp.freqBins, 0.0));
+        for (size_t t = 0; t < sp.timeBins; ++t) {
+            for (size_t f = 0; f < sp.freqBins; ++f) {
+                ampFrames[t][f] = sp.atDb(t, f);
+            }
+        }
+        return ampFrames;
+    }
+}
 
 JobResult FFTvsTimeFlow::Run(const Job& job, const FileItem& file)
 {
@@ -38,7 +75,7 @@ JobResult FFTvsTimeFlow::Run(const Job& job, const FileItem& file)
     }
 
     Spectrogram sp = FFTvsTimeAnalyzer::Compute(sig.samples, sig.fs, job.params);
-    if (sp.timeBins == 0 || sp.freqBins == 0) {
+    if (sp.timeBins == 0 || sp.freqBins == 0 || sp.dataDb.empty()) {
         if (job.isATFX) r.message = "ATFX FFT vs time失败";
         else if (file.ext == "hdf") r.message = "HDF FFT vs time失败";
         else r.message = "WAV FFT vs time失败";
@@ -50,6 +87,20 @@ JobResult FFTvsTimeFlow::Run(const Job& job, const FileItem& file)
         r.message = err.empty() ? "时频CSV写入失败" : err;
         return r;
     }
+
+    // 内存3D结果
+    r.heatmapFreqFrames = buildFreqFramesFromSpectrogram(sp);
+    r.heatmapAmpFrames = buildAmpFramesFromSpectrogramDb(sp);
+
+    if (r.heatmapFreqFrames.size() != r.heatmapAmpFrames.size()) {
+        r.message = "内存热图维度不一致";
+        return r;
+    }
+
+    r.heatmapIsDb = true;
+    r.heatmapXUnit = "Hz";
+    r.heatmapYUnit = "Time";
+    r.heatmapZUnit = "dB";
 
     r.ok = true;
     r.message = "OK";

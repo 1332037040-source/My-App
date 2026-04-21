@@ -1,4 +1,7 @@
 ﻿#pragma once
+
+#include <string>
+#include <vector>
 #include "CoreAnalysisRequest.h"
 #include "CoreAnalysisResult.h"
 

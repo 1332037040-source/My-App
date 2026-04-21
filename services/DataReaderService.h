@@ -14,6 +14,13 @@ public:
         SignalData& out,
         std::string& err) const;
 
+    // 读取 RPM 信号（供 Level vs RPM 使用）
+    bool ReadRpmSignal(const Job& job,
+        const FileItem& file,
+        std::vector<double>& rpm,
+        double& rpmFs,
+        std::string& err) const;
+
 private:
     bool ReadATFX(const Job& job,
         const FileItem& file,

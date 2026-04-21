@@ -70,7 +70,7 @@ set(CORE_HEADERS
 add_library(myapp_core STATIC
     ${CORE_SOURCES}
     ${CORE_HEADERS}
- "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp")
+ "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp" "features/order_tracking/AngleResampler.h" "features/level_vs_rpm/levelVsRpmAnalyzer.cpp" "flows/LevelVsRpmFlow.cpp")
 
 target_include_directories(myapp_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -93,7 +93,7 @@ set(CLI_SOURCES
 
 add_executable(MyApp
     ${CLI_SOURCES}
- "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp")
+ "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp" "features/order_tracking/AngleResampler.h" "features/level_vs_rpm/levelVsRpmAnalyzer.cpp" "flows/LevelVsRpmFlow.cpp")
 
 target_include_directories(MyApp PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

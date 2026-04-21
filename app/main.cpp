@@ -25,6 +25,7 @@ static const char* ModeToText(AnalysisMode mode)
     case AnalysisMode::OCTAVE_1_1: return "OCTAVE_1_1";
     case AnalysisMode::OCTAVE_1_3: return "OCTAVE_1_3";
     case AnalysisMode::LEVEL_VS_TIME: return "LEVEL_VS_TIME";
+    case AnalysisMode::LEVEL_VS_RPM: return "LEVEL_VS_RPM";
     default: return "UNKNOWN";
     }
 }
@@ -52,7 +53,7 @@ static void PrintResults(
         }
         else if (file.path.find(".hdf") != std::string::npos || file.path.find(".HDF") != std::string::npos) {
             std::cout << "HDF | " << file.path
-                << " | 通��." << file.channels[job.channelIdx].channelName;
+                << " | 通道." << file.channels[job.channelIdx].channelName;
         }
         else {
             std::cout << "WAV | " << file.path;
@@ -63,7 +64,12 @@ static void PrintResults(
             std::cout << "  [状态] 失败: " << r.message << "\n";
         }
         else {
-            if (!r.levelVsTimeCsvPath.empty()) {
+            if (!r.levelVsRpmCsvPath.empty()) {
+                std::cout << "  [结果] Level vs RPM CSV: " << r.levelVsRpmCsvPath << "\n";
+                std::cout << std::fixed << std::setprecision(3);
+                std::cout << "  [峰值预览] " << r.peak.mag << " dB\n";
+            }
+            else if (!r.levelVsTimeCsvPath.empty()) {
                 std::cout << "  [结果] Level vs Time CSV: " << r.levelVsTimeCsvPath << "\n";
                 std::cout << std::fixed << std::setprecision(3);
                 std::cout << "  [最大级值] " << r.peak.mag << " dB\n";

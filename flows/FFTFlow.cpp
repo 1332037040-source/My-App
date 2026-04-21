@@ -5,6 +5,9 @@
 #include "../services/ExportService.h"
 #include "../core/Utils.h"
 
+#include <cmath>
+#include <string>
+
 JobResult FFTFlow::Run(const Job& job, const FileItem& file)
 {
     JobResult r;
@@ -57,6 +60,31 @@ JobResult FFTFlow::Run(const Job& job, const FileItem& file)
 
     // 6) 峰值
     r.peak = spectrumSvc.CalcPeakFromFFT(fft, sig.fs);
+
+    // 7) 新增：内存2D结果（供Qt直接绘图）
+    {
+        const size_t nfft = fft.size();
+        const size_t nbins = (nfft > 0) ? (nfft / 2 + 1) : 0;
+
+        r.curveX.clear();
+        r.curveY.clear();
+        r.curveX.reserve(nbins);
+        r.curveY.reserve(nbins);
+
+        for (size_t k = 0; k < nbins; ++k) {
+            const double f = (sig.fs > 0.0 && nfft > 0)
+                ? (static_cast<double>(k) * sig.fs / static_cast<double>(nfft))
+                : 0.0;
+            const double mag = std::abs(fft[k]); // 与当前CSV口径一致（线性幅值）
+            r.curveX.push_back(f);
+            r.curveY.push_back(mag);
+        }
+
+        r.curveIsDb = false;
+        r.curveXUnit = "Hz";
+        r.curveYUnit = sig.unit;      // 无单位时为空串即可
+        r.curveName = chName + "_FFT";
+    }
 
     r.ok = true;
     r.message = "OK";

@@ -31,6 +31,10 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
         return out;
     }
 
+    // 是否需要 RPM 配置（FFT_VS_RPM / LEVEL_VS_RPM）
+    const bool needRpm =
+        (req.mode == AnalysisMode::FFT_VS_RPM || req.mode == AnalysisMode::LEVEL_VS_RPM);
+
     // 1) 构建 files
     out.files.clear();
     out.files.reserve(req.inputPaths.size());
@@ -139,7 +143,12 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
                 j.mode = req.mode;
                 j.params = req.fftParams;
 
-                if (req.mode == AnalysisMode::FFT_VS_RPM) {
+                // LEVEL 模式统一禁用频率计权（仅时间计权）
+                if (j.mode == AnalysisMode::LEVEL_VS_RPM) {
+                    j.params.weight_type = Weighting::WeightType::None;
+                }
+
+                if (needRpm) {
                     if (fi >= req.rpmChannelNameByFile.size()) continue;
 
                     const std::string& rpmName = req.rpmChannelNameByFile[fi];
@@ -164,7 +173,12 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
                 j.mode = req.mode;
                 j.params = req.fftParams;
 
-                if (req.mode == AnalysisMode::FFT_VS_RPM) {
+                // LEVEL 模式统一禁用频率计权（仅时间计权）
+                if (j.mode == AnalysisMode::LEVEL_VS_RPM) {
+                    j.params.weight_type = Weighting::WeightType::None;
+                }
+
+                if (needRpm) {
                     if (fi >= req.rpmChannelNameByFile.size()) continue;
 
                     const std::string& rpmName = req.rpmChannelNameByFile[fi];
@@ -179,7 +193,8 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
         }
         // ---------- WAV ----------
         else if (f.ext == "wav") {
-            if (req.mode == AnalysisMode::FFT_VS_RPM) {
+            if (needRpm) {
+                // 当前 RPM 模式仅支持 ATFX/HDF（需RPM通道）
                 continue;
             }
 

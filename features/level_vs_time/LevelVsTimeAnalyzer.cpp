@@ -4,12 +4,92 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
+#include <iomanip>
 
 namespace LevelVsTimeAnalyzer {
 
     namespace
     {
         constexpr double EPS = 1e-30;
+
+        // ===== 调试开关 =====
+        constexpr bool kEnableDebugLog = true;
+
+        const char* toTimeWeightingModeStr(TimeWeightingMode mode)
+        {
+            switch (mode) {
+            case TimeWeightingMode::Fast:      return "Fast";
+            case TimeWeightingMode::Slow:      return "Slow";
+            case TimeWeightingMode::Impulse:   return "Impulse";
+            case TimeWeightingMode::Rectangle: return "Rectangle";
+            case TimeWeightingMode::Manual:    return "Manual";
+            default:                           return "Unknown";
+            }
+        }
+
+        void debugPrintParams(const FFTParams& p, double fs, size_t inputSize)
+        {
+            if (!kEnableDebugLog) return;
+
+            std::cout << "\n========== [LevelVsTimeAnalyzer::Compute] ==========\n";
+            std::cout << std::fixed << std::setprecision(9);
+            std::cout << "fs                      : " << fs << "\n";
+            std::cout << "input samples           : " << inputSize << "\n";
+            std::cout << "time_weighting(raw)     : \"" << p.time_weighting << "\"\n";
+            std::cout << "level_time_constant_sec : " << p.level_time_constant_sec << "\n";
+            std::cout << "level_window_sec        : " << p.level_window_sec << "\n";
+            std::cout << "level_output_step_sec   : " << p.level_output_step_sec << "\n";
+            std::cout << "octaveRefValue          : " << p.octaveRefValue << "\n";
+            std::cout << "calibrationFactor       : " << p.calibrationFactor << "\n";
+            std::cout << "weight_type(enum int)   : " << static_cast<int>(p.weight_type)
+                << " (" << Weighting::weight_type_to_string(p.weight_type) << ")\n";
+            std::cout << "====================================================\n";
+        }
+
+        void debugPrintRuntimeDecision(
+            TimeWeightingMode mode,
+            double outputStepSec,
+            size_t outputStepSamples,
+            double ref,
+            double refPower,
+            double cal,
+            double fs)
+        {
+            if (!kEnableDebugLog) return;
+
+            std::cout << std::fixed << std::setprecision(9);
+            std::cout << "[LevelVsTimeAnalyzer] parsed mode      : " << toTimeWeightingModeStr(mode) << "\n";
+            std::cout << "[LevelVsTimeAnalyzer] outputStepSec    : " << outputStepSec << "\n";
+            std::cout << "[LevelVsTimeAnalyzer] outputStepSamples: " << outputStepSamples << "\n";
+            std::cout << "[LevelVsTimeAnalyzer] ref              : " << ref << "\n";
+            std::cout << "[LevelVsTimeAnalyzer] refPower         : " << refPower << "\n";
+            std::cout << "[LevelVsTimeAnalyzer] calibrationFactor: " << cal << "\n";
+            std::cout << "[LevelVsTimeAnalyzer] dt(1/fs)         : " << (fs > 0.0 ? 1.0 / fs : 0.0) << "\n";
+        }
+
+        void debugPrintModeConstants(TimeWeightingMode mode, const FFTParams& p)
+        {
+            if (!kEnableDebugLog) return;
+
+            if (mode == TimeWeightingMode::Fast) {
+                std::cout << "[LevelVsTimeAnalyzer] mode=Fast, tau=0.125 s\n";
+            }
+            else if (mode == TimeWeightingMode::Slow) {
+                std::cout << "[LevelVsTimeAnalyzer] mode=Slow, tau=1.0 s\n";
+            }
+            else if (mode == TimeWeightingMode::Impulse) {
+                std::cout << "[LevelVsTimeAnalyzer] mode=Impulse, tauRise=0.035 s, tauFall=1.5 s\n";
+            }
+            else if (mode == TimeWeightingMode::Manual) {
+                const double tau = (p.level_time_constant_sec > 0.0) ? p.level_time_constant_sec : 0.125;
+                std::cout << "[LevelVsTimeAnalyzer] mode=Manual, tau=" << tau << " s\n";
+            }
+            else if (mode == TimeWeightingMode::Rectangle) {
+                const double windowSec = (p.level_window_sec > 0.0) ? p.level_window_sec : 0.125;
+                std::cout << "[LevelVsTimeAnalyzer] mode=Rectangle, windowSec=" << windowSec << " s\n";
+            }
+        }
 
         double safeDbPower(double power, double refPower)
         {
@@ -65,7 +145,7 @@ namespace LevelVsTimeAnalyzer {
             case TimeWeightingMode::Slow:
                 return 0.042666667;
             case TimeWeightingMode::Impulse:
-                return 0.001333333;
+                return 0.001333333; // Artemis 导出常见值
             case TimeWeightingMode::Rectangle:
                 return 0.005333333;
             case TimeWeightingMode::Manual: {
@@ -121,13 +201,12 @@ namespace LevelVsTimeAnalyzer {
             return y;
         }
 
-        // Impulse：双时间常数一阶时间计权
-        // 上升：35 ms
-        // 下降：1.5 s
-        // 初始化：首个 35 ms 线性功率均值
+        // Impulse 双时间常数（35ms 上升 / 1.5s 下降）
+        // 修正：初始化改为首个输出步长窗口均值，避免全段偏低+慢爬升
         DVector computeImpulseWeighting(
             const DVector& power,
-            double fs)
+            double fs,
+            size_t initWindowSamples)
         {
             DVector y;
             if (power.empty() || fs <= 0.0) return y;
@@ -141,7 +220,7 @@ namespace LevelVsTimeAnalyzer {
             const double aRise = std::exp(-dt / tauRise);
             const double aFall = std::exp(-dt / tauFall);
 
-            const size_t nInit = std::max<size_t>(1, static_cast<size_t>(std::llround(tauRise * fs)));
+            const size_t nInit = std::max<size_t>(1, initWindowSamples);
             const size_t initEnd = std::min(nInit, power.size());
 
             double state = meanPower(power, 0, initEnd);
@@ -151,14 +230,12 @@ namespace LevelVsTimeAnalyzer {
 
             for (size_t n = 1; n < power.size(); ++n) {
                 const double in = std::max(power[n], EPS);
-
                 if (in >= state) {
                     state = aRise * state + (1.0 - aRise) * in;
                 }
                 else {
                     state = aFall * state + (1.0 - aFall) * in;
                 }
-
                 if (state < EPS) state = EPS;
                 y[n] = state;
             }
@@ -166,26 +243,7 @@ namespace LevelVsTimeAnalyzer {
             return y;
         }
 
-        // 点采样导出（Impulse 使用）
-        void exportDownsampledLevelsPointSample(
-            LevelSeries& out,
-            const DVector& weightedPower,
-            double fs,
-            double refPower,
-            size_t outputStepSamples)
-        {
-            if (weightedPower.empty() || fs <= 0.0 || outputStepSamples == 0) return;
-
-            bool first = true;
-            for (size_t rawIdx = 0; rawIdx < weightedPower.size(); rawIdx += outputStepSamples) {
-                const double timeSec = static_cast<double>(rawIdx) / fs;
-                const double levelDb = safeDbPower(weightedPower[rawIdx], refPower);
-                out.points.push_back({ timeSec, levelDb });
-                updateMinMax(out, levelDb, first);
-            }
-        }
-
-        // 块均值导出（Fast/Slow/Manual）
+        // 块均值导出（Fast/Slow/Manual/Impulse 统一）
         void exportDownsampledLevelsByBlockMean(
             LevelSeries& out,
             const DVector& weightedPower,
@@ -290,11 +348,7 @@ namespace LevelVsTimeAnalyzer {
                     meanP = meanPower(power, start, end);
                 }
                 else {
-                    meanP = meanPowerWithReflectPadding(
-                        power,
-                        startLL,
-                        windowSamples
-                    );
+                    meanP = meanPowerWithReflectPadding(power, startLL, windowSamples);
                 }
 
                 const double timeSec = t0 + static_cast<double>(k) * dt;
@@ -327,6 +381,8 @@ namespace LevelVsTimeAnalyzer {
         out.fs = fs;
         if (x.empty() || fs <= 0.0) return out;
 
+        debugPrintParams(p, fs, x.size());
+
         DVector sig = x;
         Preprocessing::remove_dc(sig);
 
@@ -351,6 +407,9 @@ namespace LevelVsTimeAnalyzer {
         const double cal = (p.calibrationFactor > 0.0) ? p.calibrationFactor : 1.0;
         const double refPower = ref * ref;
 
+        debugPrintRuntimeDecision(mode, outputStepSec, outputStepSamples, ref, refPower, cal, fs);
+        debugPrintModeConstants(mode, p);
+
         DVector power;
         buildPower(sig, cal, power);
         if (power.empty()) return out;
@@ -368,8 +427,11 @@ namespace LevelVsTimeAnalyzer {
         }
 
         if (mode == TimeWeightingMode::Impulse) {
-            const DVector y = computeImpulseWeighting(power, fs);
-            exportDownsampledLevelsPointSample(out, y, fs, refPower, outputStepSamples);
+            // 关键修正：
+            // 1) 初值用首个输出步长窗口均值
+            // 2) 导出用块均值（与 Artemis 导出更一致）
+            const DVector y = computeImpulseWeighting(power, fs, outputStepSamples);
+            exportDownsampledLevelsByBlockMean(out, y, fs, refPower, outputStepSamples);
             return out;
         }
 
@@ -390,4 +452,4 @@ namespace LevelVsTimeAnalyzer {
         }
     }
 
-} // namespace LevelVsTimeAnalyzer 
+} // namespace LevelVsTimeAnalyzer
