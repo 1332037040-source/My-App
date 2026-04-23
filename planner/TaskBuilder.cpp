@@ -31,11 +31,9 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
         return out;
     }
 
-    // 是否需要 RPM 配置（FFT_VS_RPM / LEVEL_VS_RPM）
     const bool needRpm =
         (req.mode == AnalysisMode::FFT_VS_RPM || req.mode == AnalysisMode::LEVEL_VS_RPM);
 
-    // 1) 构建 files
     out.files.clear();
     out.files.reserve(req.inputPaths.size());
 
@@ -47,12 +45,10 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
         out.files.push_back(f);
     }
 
-    // 2) 读取通道列表（ATFX + HDF）
     for (size_t fi = 0; fi < out.files.size(); ++fi) {
         auto& f = out.files[fi];
         if (!f.selected) continue;
 
-        // ---------- ATFX ----------
         if (f.ext == "atfx") {
             FFT11_ATFXReader atfx;
             if (!atfx.GetAllChannels(f.path, f.channels, f.fs) || f.channels.empty()) {
@@ -69,20 +65,15 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
             if (hasCustom) {
                 std::set<size_t> uniq;
                 for (size_t ci : req.atfxSelectedChannelsByFile[fi]) {
-                    if (ci < f.channels.size()) {
-                        uniq.insert(ci);
-                    }
+                    if (ci < f.channels.size()) uniq.insert(ci);
                 }
                 f.selectedChannels.assign(uniq.begin(), uniq.end());
             }
 
             if (f.selectedChannels.empty()) {
-                for (size_t ci = 0; ci < f.channels.size(); ++ci) {
-                    f.selectedChannels.push_back(ci);
-                }
+                for (size_t ci = 0; ci < f.channels.size(); ++ci) f.selectedChannels.push_back(ci);
             }
         }
-        // ---------- HDF ----------
         else if (f.ext == "hdf") {
             FFT11_HDFReader hdf;
             std::vector<HDFChannelInfo> hdfChannels;
@@ -95,9 +86,7 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
 
             f.channels.clear();
             f.channels.reserve(hdfChannels.size());
-            for (const auto& hc : hdfChannels) {
-                f.channels.push_back(ToATFXLike(hc));
-            }
+            for (const auto& hc : hdfChannels) f.channels.push_back(ToATFXLike(hc));
             f.fs = fs;
 
             f.selectedChannels.clear();
@@ -109,29 +98,23 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
             if (hasCustom) {
                 std::set<size_t> uniq;
                 for (size_t ci : req.atfxSelectedChannelsByFile[fi]) {
-                    if (ci < f.channels.size()) {
-                        uniq.insert(ci);
-                    }
+                    if (ci < f.channels.size()) uniq.insert(ci);
                 }
                 f.selectedChannels.assign(uniq.begin(), uniq.end());
             }
 
             if (f.selectedChannels.empty()) {
-                for (size_t ci = 0; ci < f.channels.size(); ++ci) {
-                    f.selectedChannels.push_back(ci);
-                }
+                for (size_t ci = 0; ci < f.channels.size(); ++ci) f.selectedChannels.push_back(ci);
             }
         }
     }
 
-    // 3) 构建 jobs
     out.jobs.clear();
 
     for (size_t fi = 0; fi < out.files.size(); ++fi) {
         const auto& f = out.files[fi];
         if (!f.selected) continue;
 
-        // ---------- ATFX ----------
         if (f.ext == "atfx") {
             for (size_t ci : f.selectedChannels) {
                 if (ci >= f.channels.size()) continue;
@@ -142,18 +125,16 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
                 j.channelIdx = ci;
                 j.mode = req.mode;
                 j.params = req.fftParams;
+                j.writeCsvToDisk = req.writeCsvToDisk; // 新增
 
-                // LEVEL 模式统一禁用频率计权（仅时间计权）
                 if (j.mode == AnalysisMode::LEVEL_VS_RPM) {
                     j.params.weight_type = Weighting::WeightType::None;
                 }
 
                 if (needRpm) {
                     if (fi >= req.rpmChannelNameByFile.size()) continue;
-
                     const std::string& rpmName = req.rpmChannelNameByFile[fi];
                     if (rpmName.empty()) continue;
-
                     j.rpmChannelName = rpmName;
                     j.rpmBinStep = (req.rpmBinStep > 0.0 ? req.rpmBinStep : 50.0);
                 }
@@ -161,7 +142,6 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
                 out.jobs.push_back(j);
             }
         }
-        // ---------- HDF ----------
         else if (f.ext == "hdf") {
             for (size_t ci : f.selectedChannels) {
                 if (ci >= f.channels.size()) continue;
@@ -172,18 +152,16 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
                 j.channelIdx = ci;
                 j.mode = req.mode;
                 j.params = req.fftParams;
+                j.writeCsvToDisk = req.writeCsvToDisk; // 新增
 
-                // LEVEL 模式统一禁用频率计权（仅时间计权）
                 if (j.mode == AnalysisMode::LEVEL_VS_RPM) {
                     j.params.weight_type = Weighting::WeightType::None;
                 }
 
                 if (needRpm) {
                     if (fi >= req.rpmChannelNameByFile.size()) continue;
-
                     const std::string& rpmName = req.rpmChannelNameByFile[fi];
                     if (rpmName.empty()) continue;
-
                     j.rpmChannelName = rpmName;
                     j.rpmBinStep = (req.rpmBinStep > 0.0 ? req.rpmBinStep : 50.0);
                 }
@@ -191,12 +169,8 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
                 out.jobs.push_back(j);
             }
         }
-        // ---------- WAV ----------
         else if (f.ext == "wav") {
-            if (needRpm) {
-                // 当前 RPM 模式仅支持 ATFX/HDF（需RPM通道）
-                continue;
-            }
+            if (needRpm) continue;
 
             Job j;
             j.fileIdx = fi;
@@ -204,7 +178,7 @@ BuildResponse TaskBuilder::BuildFromRequest(const BuildRequest& req)
             j.channelIdx = 0;
             j.mode = req.mode;
             j.params = req.fftParams;
-
+            j.writeCsvToDisk = req.writeCsvToDisk; // 新增
             out.jobs.push_back(j);
         }
     }

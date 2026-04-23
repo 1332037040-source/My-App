@@ -60,6 +60,9 @@ struct Job {
 
     std::string rpmChannelName;
     double rpmBinStep = 50.0;
+
+    // 新增：该Job是否允许写CSV
+    bool writeCsvToDisk = true;
 };
 
 struct PeakPreview {
@@ -79,25 +82,21 @@ struct JobResult {
     std::string levelVsRpmCsvPath;
     PeakPreview peak;
 
-    // ===== 内存接口（新增）=====
-    // 2D 曲线（FFT / Octave）
     std::vector<double> curveX;
     std::vector<double> curveY;
     bool curveIsDb = false;
-    std::string curveXUnit;  // "Hz"
-    std::string curveYUnit;  // "dB" / "Pa"
+    std::string curveXUnit;
+    std::string curveYUnit;
     std::string curveName;
 
-    // 3D 热图（FFT_VS_TIME / FFT_VS_RPM）
     std::vector<std::vector<double>> heatmapFreqFrames;
     std::vector<std::vector<double>> heatmapAmpFrames;
     bool heatmapIsDb = false;
-    std::string heatmapXUnit; // "Hz"
-    std::string heatmapYUnit; // "Time" / "RPM" / "Frame"
-    std::string heatmapZUnit; // "dB" / "Pa"
+    std::string heatmapXUnit;
+    std::string heatmapYUnit;
+    std::string heatmapZUnit;
 };
 
-// 统一的时域数据结构
 struct SignalData {
     std::vector<double> samples;
     double fs = 0.0;

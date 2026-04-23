@@ -30,7 +30,7 @@ bool ExportService::WriteSpectrogram(const Spectrogram& sp,
 {
     err.clear();
 
-    const SpectrogramValueType valueType = SpectrogramValueType::dB;
+    const SpectrogramValueType valueType = SpectrogramValueType::Linear;
     std::ofstream ofs(outPath);
     if (!ofs.is_open()) {
         err = "时频CSV写入失败";
@@ -43,10 +43,10 @@ bool ExportService::WriteSpectrogram(const Spectrogram& sp,
         << ", hopSize=" << sp.hopSize
         << ", timeBins=" << sp.timeBins
         << ", freqBins=" << sp.freqBins
-        << ", valueType=" << (valueType == SpectrogramValueType::dB ? "dB" : "linear")
+        << ", valueType=" << (valueType == SpectrogramValueType::dB ? "dB" : "Pa")
         << "\n";
 
-    ofs << "freq_hz";
+    ofs << "freq_hz\\rpm";
     for (size_t t = 0; t < sp.timeBins; ++t) {
         double ts = (t < sp.frameTimeSec.size()) ? sp.frameTimeSec[t] : 0.0;
         ofs << "," << ts;
@@ -93,6 +93,7 @@ bool ExportService::WriteRpmSpectrogram(const RpmSpectrogram& sp,
         << ", rpmStep=" << sp.rpmStep
         << ", rpmBins=" << sp.rpmBins
         << ", freqBins=" << sp.freqBins
+        << ", valueType=Pa"
         << "\n";
 
     // 表头：第一列频率，后续列为rpm（横轴）
@@ -103,8 +104,6 @@ bool ExportService::WriteRpmSpectrogram(const RpmSpectrogram& sp,
     }
     ofs << "\n";
 
-    // 数据：每行一个频率点（纵轴）
-    // 为对齐Artemis观感，从 k=1 开始（跳过0Hz���
     const double df = (sp.blockSize > 0)
         ? (sp.fs / static_cast<double>(sp.blockSize))
         : 0.0;
@@ -114,7 +113,7 @@ bool ExportService::WriteRpmSpectrogram(const RpmSpectrogram& sp,
         ofs << freq;
 
         for (size_t r = 0; r < sp.rpmBins; ++r) {
-            ofs << "," << sp.at(r, k); // dataDb[r * freqBins + k]
+            ofs << "," << sp.at(r, k);
         }
         ofs << "\n";
     }
@@ -163,7 +162,7 @@ bool ExportService::WriteOctave(const OctaveBandResult& result,
         return false;
     }
 
-    ofs << "CenterHz,Value\n";
+    ofs << "center_hz,value_pa\n";
 
     const size_t n = (result.bandCenters.size() < result.bandValues.size())
         ? result.bandCenters.size()
@@ -193,9 +192,9 @@ bool ExportService::WriteLevelVsTime(const LevelVsTimeAnalyzer::LevelSeries& ser
         return false;
     }
 
-    ofs << "time_sec,level_db\n";
+    ofs << "time_sec,level_pa\n";
     for (const auto& pt : series.points) {
-        ofs << pt.timeSec << "," << pt.levelDb << "\n";
+        ofs << pt.timeSec << "," << pt.levelPa << "\n";
     }
 
     if (!ofs.good()) {
@@ -205,6 +204,7 @@ bool ExportService::WriteLevelVsTime(const LevelVsTimeAnalyzer::LevelSeries& ser
 
     return true;
 }
+
 bool ExportService::WriteLevelVsRpm(const LevelVsRpmSeries& series,
     const std::string& outPath,
     std::string& err) const
@@ -215,11 +215,11 @@ bool ExportService::WriteLevelVsRpm(const LevelVsRpmSeries& series,
         return false;
     }
 
-    ofs << "rpm,level_db\n";
+    ofs << "rpm,level_pa\n";
     ofs << std::fixed << std::setprecision(6);
 
     for (const auto& p : series.points) {
-        ofs << p.rpm << "," << p.levelDb << "\n";
+        ofs << p.rpm << "," << p.levelPa << "\n";
     }
 
     if (!ofs.good()) {

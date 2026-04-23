@@ -1,0 +1,381 @@
+﻿
+FullName                                                                                                        
+--------                                                                                                        
+E:\Users\My App\.vs                                                                                             
+E:\Users\My App\app                                                                                             
+E:\Users\My App\core                                                                                            
+E:\Users\My App\core_api                                                                                        
+E:\Users\My App\domain                                                                                          
+E:\Users\My App\engine                                                                                          
+E:\Users\My App\executor                                                                                        
+E:\Users\My App\features                                                                                        
+E:\Users\My App\fft                                                                                             
+E:\Users\My App\flows                                                                                           
+E:\Users\My App\io                                                                                              
+E:\Users\My App\out                                                                                             
+E:\Users\My App\planner                                                                                         
+E:\Users\My App\preprocess                                                                                      
+E:\Users\My App\relitu                                                                                          
+E:\Users\My App\report                                                                                          
+E:\Users\My App\services                                                                                        
+E:\Users\My App\.gitignore                                                                                      
+E:\Users\My App\100-15krpm 0Nm sheng 20s.atfbin                                                                 
+E:\Users\My App\100-15krpm 0Nm sheng 20s.atfx                                                                   
+E:\Users\My App\100-15krpm 165Nm 20s.atfbin                                                                     
+E:\Users\My App\100-15krpm 165Nm 20s.atfx                                                                       
+E:\Users\My App\CMakeLists.txt                                                                                  
+E:\Users\My App\Convert-936-To-UTF8.ps1                                                                         
+E:\Users\My App\core_api_example.cpp                                                                            
+E:\Users\My App\core_api_integration.md                                                                         
+E:\Users\My App\Detect-Encoding.ps1                                                                             
+E:\Users\My App\docs.md                                                                                         
+E:\Users\My App\encoding-report.csv                                                                             
+E:\Users\My App\newVskew.wav                                                                                    
+E:\Users\My App\project_tree.txt                                                                                
+E:\Users\My App\pugiconfig.hpp                                                                                  
+E:\Users\My App\pugixml.cpp                                                                                     
+E:\Users\My App\pugixml.hpp                                                                                     
+E:\Users\My App\Qt connect.md                                                                                   
+E:\Users\My App\Rename-FFT11-Files.ps1                                                                          
+E:\Users\My App\Update-Include-And-CMake.ps1                                                                    
+E:\Users\My App\.vs\My App                                                                                      
+E:\Users\My App\.vs\CMake Overview                                                                              
+E:\Users\My App\.vs\cmake.db                                                                                    
+E:\Users\My App\.vs\ProjectSettings.json                                                                        
+E:\Users\My App\.vs\slnx.sqlite                                                                                 
+E:\Users\My App\.vs\VSWorkspaceState.json                                                                       
+E:\Users\My App\.vs\My App\CopilotIndices                                                                       
+E:\Users\My App\.vs\My App\FileContentIndex                                                                     
+E:\Users\My App\.vs\My App\v17                                                                                  
+E:\Users\My App\.vs\My App\CopilotIndices\17.14.1593.33849                                                      
+E:\Users\My App\.vs\My App\CopilotIndices\17.14.1593.33849\CodeChunks.db                                        
+E:\Users\My App\.vs\My App\CopilotIndices\17.14.1593.33849\CodeChunks.db-shm                                    
+E:\Users\My App\.vs\My App\CopilotIndices\17.14.1593.33849\CodeChunks.db-wal                                    
+E:\Users\My App\.vs\My App\CopilotIndices\17.14.1593.33849\SemanticSymbols.db                                   
+E:\Users\My App\.vs\My App\CopilotIndices\17.14.1593.33849\SemanticSymbols.db-shm                               
+E:\Users\My App\.vs\My App\CopilotIndices\17.14.1593.33849\SemanticSymbols.db-wal                               
+E:\Users\My App\.vs\My App\FileContentIndex\1e41c134-e04b-434e-a7cf-6829f447f234.vsidx                          
+E:\Users\My App\.vs\My App\FileContentIndex\2794360d-352c-4376-9f21-0b415fc42de3.vsidx                          
+E:\Users\My App\.vs\My App\FileContentIndex\bdccd536-a43d-46a2-95c6-bca8385f6807.vsidx                          
+E:\Users\My App\.vs\My App\FileContentIndex\c4325789-277f-487d-9e40-f60d4505adf4.vsidx                          
+E:\Users\My App\.vs\My App\FileContentIndex\ff5afb41-6594-4aee-9f52-93d801a24d79.vsidx                          
+E:\Users\My App\.vs\My App\v17\ipch                                                                             
+E:\Users\My App\.vs\My App\v17\Browse.VC.db                                                                     
+E:\Users\My App\.vs\My App\v17\Browse.VC.db-shm                                                                 
+E:\Users\My App\.vs\My App\v17\Browse.VC.db-wal                                                                 
+E:\Users\My App\.vs\My App\v17\DocumentLayout.backup.json                                                       
+E:\Users\My App\.vs\My App\v17\DocumentLayout.json                                                              
+E:\Users\My App\.vs\My App\v17\Solution.VC.db                                                                   
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH                                                                     
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\151efdfc013f26a3                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\1927a558920da689                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\1a822c1501e4dd36                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\1f1bf2e5d4235ff2                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\2202c68ccdf4f98d                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\2e1ff3466a3c88b7                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\2ebaa7329749502b                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\3bc7adff4acac664                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\4059b4f2bfb470ea                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\48c35ea32a2cc419                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\4a2540ce21d6a66a                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\4badff411d89734                                                     
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\4bbc3482329cd5be                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\52c045e3c4345d0a                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\52fde19f54ec507e                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\5bdffc4d0c780793                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\635c1db0d9a80b00                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\648c911c585e4fb1                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\6928277ef4ad7e67                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\6c7b386f0cf7b537                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\7016089fe6bd4c42                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\720083ea2cb3e43d                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\729d0c4e07d456c7                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\76a33cb7525c592b                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\774bcd0291e40e88                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\8180733fdb6a50e7                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\84bbaf75c2b86c60                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\8f26b5b578f8a01                                                     
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a177ebaf66442e7a                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a275e50afe1d4864                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a436337ade15610e                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a7d0d8c338771f65                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\aef3cdea18615afd                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\b0255c77bf31ee66                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\b0f163c64d1b216e                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\b1220b5121973aed                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\b52af4ccb8fd43df                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\bc420f0b28b78fda                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\be0932b8f4f02246                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\c61be96fed7f15c4                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\cb50f544186e1f47                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\dbc0fa161ff41ce8                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\f0b3f8ccf978de46                                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\151efdfc013f26a3\LEVELVSRPMANALYZER.ipch                            
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\1927a558920da689\FFTVSRPMFLOW.ipch                                  
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\1f1bf2e5d4235ff2\OCTAVEANALYZER.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\2202c68ccdf4f98d\RUNREQUESTMAPPER.ipch                              
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\2e1ff3466a3c88b7\ANGLERESAMPLER.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\2ebaa7329749502b\TASKPLANNER.ipch                                   
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\3bc7adff4acac664\FFTVSRPMMAPPER.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\4a2540ce21d6a66a\LEVELVSTIMEANALYZER.ipch                           
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\4badff411d89734\FFTVSTIMEFLOW.ipch                                  
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\4bbc3482329cd5be\COREDATAFACADE.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\52c045e3c4345d0a\ANGLERESAMPLER.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\52fde19f54ec507e\EXPORTSERVICE.ipch                                 
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\5bdffc4d0c780793\LEVELVSRPMANALYZER.ipch                            
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\635c1db0d9a80b00\FFTVSRPMFLOW.ipch                                  
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\648c911c585e4fb1\DATAREADERSERVICE.ipch                             
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\6928277ef4ad7e67\TASKBUILDER.ipch                                   
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\6c7b386f0cf7b537\LEVELVSRPMFLOW.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\7016089fe6bd4c42\LEVELVSRPMANALYZER.ipch                            
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\720083ea2cb3e43d\ANALYZER.ipch                                      
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\76a33cb7525c592b\FFTEXECUTOR.ipch                                   
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\774bcd0291e40e88\FFTVSRPMFLOW.ipch                                  
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\8180733fdb6a50e7\ANGLERESAMPLER.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\84bbaf75c2b86c60\COREANALYSISFACADE.ipch                            
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\8f26b5b578f8a01\WEIGHTING.ipch                                      
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a177ebaf66442e7a\LEVELVSRPMFLOW.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a275e50afe1d4864\LEVELVSRPM.ipch                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a436337ade15610e\MAIN.ipch                                          
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\a7d0d8c338771f65\FFTVSRPMMAPPER.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\aef3cdea18615afd\LEVELVSRPM.ipch                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\b0255c77bf31ee66\HDFREADER.ipch                                     
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\b0f163c64d1b216e\FFTFLOW.ipch                                       
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\b52af4ccb8fd43df\ENGINE.ipch                                        
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\bc420f0b28b78fda\LEVELVSRPMFLOW.ipch                                
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\be0932b8f4f02246\LEVELVSTIMEFLOW.ipch                               
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\c61be96fed7f15c4\OCTAVEFLOW.ipch                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\cb50f544186e1f47\PARSEUTILS.ipch                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\dbc0fa161ff41ce8\LEVELVSRPM.ipch                                    
+E:\Users\My App\.vs\My App\v17\ipch\AutoPCH\f0b3f8ccf978de46\LEVELVSRPMANALYZER.ipch                            
+E:\Users\My App\app\main.cpp                                                                                    
+E:\Users\My App\app\RunRequest.h                                                                                
+E:\Users\My App\app\RunRequestMapper.cpp                                                                        
+E:\Users\My App\app\RunRequestMapper.h                                                                          
+E:\Users\My App\core\common.h                                                                                   
+E:\Users\My App\core\Utils.cpp                                                                                  
+E:\Users\My App\core\Utils.h                                                                                    
+E:\Users\My App\core_api\CoreAnalysisFacade.cpp                                                                 
+E:\Users\My App\core_api\CoreAnalysisFacade.h                                                                   
+E:\Users\My App\core_api\CoreAnalysisRequest.h                                                                  
+E:\Users\My App\core_api\CoreAnalysisResult.h                                                                   
+E:\Users\My App\core_api\CoreChannelInfo.h                                                                      
+E:\Users\My App\core_api\CoreChannelListResult.h                                                                
+E:\Users\My App\core_api\CoreDataFacade.cpp                                                                     
+E:\Users\My App\core_api\CoreDataFacade.h                                                                       
+E:\Users\My App\core_api\CoreDataRequest.h                                                                      
+E:\Users\My App\core_api\CoreFileInfo.h                                                                         
+E:\Users\My App\core_api\CoreSignalData.h                                                                       
+E:\Users\My App\domain\ParseUtils.cpp                                                                           
+E:\Users\My App\domain\ParseUtils.h                                                                             
+E:\Users\My App\domain\RpmSpectrogram.h                                                                         
+E:\Users\My App\domain\Spectrogram.h                                                                            
+E:\Users\My App\domain\Types.h                                                                                  
+E:\Users\My App\engine\Engine.cpp                                                                               
+E:\Users\My App\engine\Engine.h                                                                                 
+E:\Users\My App\executor\FFTExecutor.cpp                                                                        
+E:\Users\My App\executor\FFTExecutor.h                                                                          
+E:\Users\My App\executor\ParallelRunner.cpp                                                                     
+E:\Users\My App\executor\ParallelRunner.h                                                                       
+E:\Users\My App\features\fft_vs_rpm                                                                             
+E:\Users\My App\features\fft_vs_time                                                                            
+E:\Users\My App\features\level_vs_rpm                                                                           
+E:\Users\My App\features\level_vs_time                                                                          
+E:\Users\My App\features\octave_band                                                                            
+E:\Users\My App\features\order_tracking                                                                         
+E:\Users\My App\features\fft_vs_rpm\FFTvsRpmMapper.cpp                                                          
+E:\Users\My App\features\fft_vs_rpm\FFTvsRpmMapper.h                                                            
+E:\Users\My App\features\fft_vs_time\FFTvsTimeAnalyzer.cpp                                                      
+E:\Users\My App\features\fft_vs_time\FFTvsTimeAnalyzer.h                                                        
+E:\Users\My App\features\level_vs_rpm\levelVsRpmAnalyzer.cpp                                                    
+E:\Users\My App\features\level_vs_rpm\LevelVsRpmAnalyzer.h                                                      
+E:\Users\My App\features\level_vs_time\LevelVsTimeAnalyzer.cpp                                                  
+E:\Users\My App\features\level_vs_time\LevelVsTimeAnalyzer.h                                                    
+E:\Users\My App\features\octave_band\OctaveAnalyzer.cpp                                                         
+E:\Users\My App\features\octave_band\OctaveAnalyzer.h                                                           
+E:\Users\My App\features\order_tracking\AngleResampler.cpp                                                      
+E:\Users\My App\features\order_tracking\AngleResampler.h                                                        
+E:\Users\My App\fft\Analyzer.cpp                                                                                
+E:\Users\My App\fft\Analyzer.h                                                                                  
+E:\Users\My App\fft\FFTCore.cpp                                                                                 
+E:\Users\My App\fft\FFTCore.h                                                                                   
+E:\Users\My App\flows\FFTFlow.cpp                                                                               
+E:\Users\My App\flows\FFTFlow.h                                                                                 
+E:\Users\My App\flows\FFTvsRpmFlow.cpp                                                                          
+E:\Users\My App\flows\FFTvsRpmFlow.h                                                                            
+E:\Users\My App\flows\FFTvsTimeFlow.cpp                                                                         
+E:\Users\My App\flows\FFTvsTimeFlow.h                                                                           
+E:\Users\My App\flows\LevelVsRpmFlow.cpp                                                                        
+E:\Users\My App\flows\LevelVsRpmFlow.h                                                                          
+E:\Users\My App\flows\LevelVsTimeFlow.cpp                                                                       
+E:\Users\My App\flows\LevelVsTimeFlow.h                                                                         
+E:\Users\My App\flows\OctaveFlow.cpp                                                                            
+E:\Users\My App\flows\OctaveFlow.h                                                                              
+E:\Users\My App\io\ATFXReader.cpp                                                                               
+E:\Users\My App\io\ATFXReader.h                                                                                 
+E:\Users\My App\io\HDFReader.cpp                                                                                
+E:\Users\My App\io\HDFReader.h                                                                                  
+E:\Users\My App\io\WAVReader.cpp                                                                                
+E:\Users\My App\io\WAVReader.h                                                                                  
+E:\Users\My App\out\build                                                                                       
+E:\Users\My App\out\build\x64-Debug                                                                             
+E:\Users\My App\out\build\x64-Debug\.cmake                                                                      
+E:\Users\My App\out\build\x64-Debug\CMakeFiles                                                                  
+E:\Users\My App\out\build\x64-Debug\Testing                                                                     
+E:\Users\My App\out\build\x64-Debug\.ninja_deps                                                                 
+E:\Users\My App\out\build\x64-Debug\.ninja_log                                                                  
+E:\Users\My App\out\build\x64-Debug\build.ninja                                                                 
+E:\Users\My App\out\build\x64-Debug\CMakeCache.txt                                                              
+E:\Users\My App\out\build\x64-Debug\cmake_install.cmake                                                         
+E:\Users\My App\out\build\x64-Debug\MyApp.exe                                                                   
+E:\Users\My App\out\build\x64-Debug\MyApp.ilk                                                                   
+E:\Users\My App\out\build\x64-Debug\MyApp.pdb                                                                   
+E:\Users\My App\out\build\x64-Debug\myapp_core.lib                                                              
+E:\Users\My App\out\build\x64-Debug\VSInheritEnvironments.txt                                                   
+E:\Users\My App\out\build\x64-Debug\.cmake\api                                                                  
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1                                                               
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\query                                                         
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply                                                         
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\query\client-MicrosoftVS                                      
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\query\client-MicrosoftVS\query.json                           
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\cache-v2-4002ee979f90f7453465.json                      
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\cmakeFiles-v1-61fce5e66374666a5d25.json                 
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\codemodel-v2-3c68a808713e02876ef8.json                  
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\directory-.-Debug-d0094a50bb2071803777.json             
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\index-2026-04-20T08-24-43-0644.json                     
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\target-MyApp-Debug-489251a1ef941209162c.json            
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\target-myapp_core-Debug-976b9b3c6a0915648238.json       
+E:\Users\My App\out\build\x64-Debug\.cmake\api\v1\reply\toolchains-v1-f35ad13ef1002dca9a95.json                 
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6                                                     
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\CMakeScratch                                                     
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir                                                        
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir                                                   
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\pkgRedirects                                                     
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\ShowIncludes                                                     
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\cmake.check_cache                                                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\CMakeConfigureLog.yaml                                           
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\rules.ninja                                                      
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\TargetDirectories.txt                                            
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CompilerIdCXX                                       
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CMakeCXXCompiler.cmake                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CMakeDetermineCompilerABI_CXX.bin                   
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CMakeRCCompiler.cmake                               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CMakeSystem.cmake                                   
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CompilerIdCXX\tmp                                   
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CompilerIdCXX\CMakeCXXCompilerId.cpp                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CompilerIdCXX\CMakeCXXCompilerId.exe                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\3.31.6-msvc6\CompilerIdCXX\CMakeCXXCompilerId.obj                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\app                                                    
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\features                                               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\flows                                                  
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\planner                                                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\report                                                 
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\embed.manifest                                         
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\intermediate.manifest                                  
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\manifest.rc                                            
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\manifest.res                                           
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\vc140.pdb                                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\app\main.cpp.obj                                       
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\features\level_vs_rpm                                  
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\features\order_tracking                                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\features\level_vs_rpm\levelVsRpmAnalyzer.cpp.obj       
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\features\order_tracking\AngleResampler.cpp.obj         
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\flows\LevelVsRpmFlow.cpp.obj                           
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\planner\TaskPlanner.cpp.obj                            
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\MyApp.dir\report\ReportWriter.cpp.obj                            
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\app                                               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\core                                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\core_api                                          
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\domain                                            
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\engine                                            
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\executor                                          
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features                                          
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\fft                                               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\flows                                             
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\io                                                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\planner                                           
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\preprocess                                        
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\services                                          
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\myapp_core.pdb                                    
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\pugixml.cpp.obj                                   
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\app\RunRequestMapper.cpp.obj                      
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\core\Utils.cpp.obj                                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\core_api\CoreAnalysisFacade.cpp.obj               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\core_api\CoreDataFacade.cpp.obj                   
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\domain\ParseUtils.cpp.obj                         
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\engine\Engine.cpp.obj                             
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\executor\FFTExecutor.cpp.obj                      
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\executor\ParallelRunner.cpp.obj                   
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\fft_vs_rpm                               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\fft_vs_time                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\level_vs_rpm                             
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\level_vs_time                            
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\octave_band                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\order_tracking                           
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\fft_vs_rpm\FFTvsRpmMapper.cpp.obj        
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\fft_vs_time\FFTvsTimeAnalyzer.cpp.obj    
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\level_vs_rpm\levelVsRpmAnalyzer.cpp.obj  
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\level_vs_time\LevelVsTimeAnalyzer.cpp.obj
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\octave_band\OctaveAnalyzer.cpp.obj       
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\features\order_tracking\AngleResampler.cpp.obj    
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\fft\Analyzer.cpp.obj                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\fft\FFTCore.cpp.obj                               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\flows\FFTFlow.cpp.obj                             
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\flows\FFTvsRpmFlow.cpp.obj                        
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\flows\FFTvsTimeFlow.cpp.obj                       
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\flows\LevelVsRpmFlow.cpp.obj                      
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\flows\LevelVsTimeFlow.cpp.obj                     
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\flows\OctaveFlow.cpp.obj                          
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\io\ATFXReader.cpp.obj                             
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\io\HDFReader.cpp.obj                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\io\WAVReader.cpp.obj                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\planner\TaskBuilder.cpp.obj                       
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\preprocess\AudioBlocking.cpp.obj                  
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\preprocess\Preprocessing.cpp.obj                  
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\preprocess\Weighting.cpp.obj                      
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\preprocess\Window.cpp.obj                         
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\services\DataReaderService.cpp.obj                
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\services\ExportService.cpp.obj                    
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\myapp_core.dir\services\spectrumService.cpp.obj                  
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\ShowIncludes\foo.h                                               
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\ShowIncludes\main.c                                              
+E:\Users\My App\out\build\x64-Debug\CMakeFiles\ShowIncludes\main.obj                                            
+E:\Users\My App\out\build\x64-Debug\Testing\Temporary                                                           
+E:\Users\My App\out\build\x64-Debug\Testing\Temporary\LastTest.log                                              
+E:\Users\My App\planner\TaskBuilder.cpp                                                                         
+E:\Users\My App\planner\TaskBuilder.h                                                                           
+E:\Users\My App\planner\TaskPlanner.cpp                                                                         
+E:\Users\My App\planner\TaskPlanner.h                                                                           
+E:\Users\My App\preprocess\AudioBlocking.cpp                                                                    
+E:\Users\My App\preprocess\AudioBlocking.h                                                                      
+E:\Users\My App\preprocess\Preprocessing.cpp                                                                    
+E:\Users\My App\preprocess\Preprocessing.h                                                                      
+E:\Users\My App\preprocess\Weighting.cpp                                                                        
+E:\Users\My App\preprocess\Weighting.h                                                                          
+E:\Users\My App\preprocess\Window.cpp                                                                           
+E:\Users\My App\preprocess\Window.h                                                                             
+E:\Users\My App\relitu\.idea                                                                                    
+E:\Users\My App\relitu\100-15krpm 0Nm sheng 20s_20260325_153034_Ch. 3@SQuadriga III_fft_vs_time.csv             
+E:\Users\My App\relitu\pink_20260401_114503_Channel 1_fft_vs_time.csv                                           
+E:\Users\My App\relitu\pink_20260401_120150_Channel 1_fft_vs_time.csv                                           
+E:\Users\My App\relitu\pink_20260401_125509_Channel 1_fft_vs_time.csv                                           
+E:\Users\My App\relitu\relitu.py                                                                                
+E:\Users\My App\relitu\.idea\inspectionProfiles                                                                 
+E:\Users\My App\relitu\.idea\.gitignore                                                                         
+E:\Users\My App\relitu\.idea\.name                                                                              
+E:\Users\My App\relitu\.idea\misc.xml                                                                           
+E:\Users\My App\relitu\.idea\modules.xml                                                                        
+E:\Users\My App\relitu\.idea\relitu.iml                                                                         
+E:\Users\My App\relitu\.idea\vcs.xml                                                                            
+E:\Users\My App\relitu\.idea\workspace.xml                                                                      
+E:\Users\My App\relitu\.idea\inspectionProfiles\profiles_settings.xml                                           
+E:\Users\My App\report\ReportWriter.cpp                                                                         
+E:\Users\My App\report\ReportWriter.h                                                                           
+E:\Users\My App\services\DataReaderService.cpp                                                                  
+E:\Users\My App\services\DataReaderService.h                                                                    
+E:\Users\My App\services\ExportService.cpp                                                                      
+E:\Users\My App\services\ExportService.h                                                                        
+E:\Users\My App\services\spectrumService.cpp                                                                    
+E:\Users\My App\services\SpectrumService.h                                                                      
+
+

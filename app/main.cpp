@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) {
         req.overlap = 0.5;
         req.weighting = "Z";
 
-        CoreAnalysisResult res = facade.run(req);
+        CoreAnalysisResult res = facade.runForCliCsv(req);
 
         std::cout << "\n======= Core API Test Result =======\n";
         std::cout << "success        : " << (res.success ? "true" : "false") << "\n";
@@ -270,4 +270,5 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[完成] 程序执行完毕\n";
     return 0;
+
 }

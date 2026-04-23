@@ -74,11 +74,24 @@ namespace {
     static float ReadF32(const unsigned char* p, bool littleEndianFile) {
         uint32_t u = 0;
         std::memcpy(&u, p, sizeof(uint32_t));
-        const bool littleHost = IsLittleEndianHost();
-        if (littleHost != littleEndianFile) u = BSwap32(u);
+        if (IsLittleEndianHost() != littleEndianFile) u = BSwap32(u);
         float f = 0.0f;
         std::memcpy(&f, &u, sizeof(float));
         return f;
+    }
+
+    static uint32_t ReadU32(const unsigned char* p, bool littleEndianFile) {
+        uint32_t u = 0;
+        std::memcpy(&u, p, sizeof(uint32_t));
+        if (IsLittleEndianHost() != littleEndianFile) u = BSwap32(u);
+        return u;
+    }
+
+    static size_t BytesPerSampleFromImpl(const std::string& impl) {
+        std::string t = ToLowerCopy(impl);
+        if (t.find("uint32") != std::string::npos) return 4;
+        if (t.find("float32") != std::string::npos) return 4;
+        return 4;
     }
 
     // ========================= 元数据 =========================
@@ -88,12 +101,12 @@ namespace {
         std::string label = "";
         std::string quantity;
         std::string dof = "-";
+        std::string implementationType = "FLOAT32";
     };
 
     struct HDFMeta {
         std::string kind;
         std::string byteOrder;
-        std::string implementationType;
         std::string scanMode;
         std::string chOrderRaw;
         std::string dataOrgRaw;
@@ -108,23 +121,47 @@ namespace {
         std::vector<ChannelMeta> channels;
     };
 
-    struct ChOrderToken {
-        size_t repeat = 1;
-        size_t channel = 1; // 1-based
+    struct ChannelRateRule {
+        bool fixed1000 = false; // 单独数字 N
+        size_t coeff = 0;       // X*N 中的 X
     };
 
+    static bool IsTimeKind(const HDFMeta& m) {
+        return ToLowerCopy(m.kind).find("time data") != std::string::npos;
+    }
+
+    static bool IsLittleEndianFile(const HDFMeta& m) {
+        return ToLowerCopy(m.byteOrder).find("intel") != std::string::npos;
+    }
+
+    static bool IsSimultaneous(const HDFMeta& m) {
+        return ToLowerCopy(m.scanMode).find("simultaneous") != std::string::npos &&
+            ToLowerCopy(m.scanMode).find("multiple") == std::string::npos;
+    }
+
+    static bool IsSynchronisedMultiple(const HDFMeta& m) {
+        return ToLowerCopy(m.scanMode).find("synchronised multiple") != std::string::npos;
+    }
+
+    // ========================= 头部解析 =========================
     static bool ParseHeader(const std::string& path, HDFMeta& meta, std::string& err) {
         err.clear();
         meta = HDFMeta{};
 
         std::ifstream fin(path, std::ios::binary);
-        if (!fin) { err = "无法打开HDF文件"; return false; }
+        if (!fin) {
+            err = "无法打开HDF文件";
+            return false;
+        }
 
         const size_t probeSize = 65536;
         std::vector<char> probe(probeSize, 0);
         fin.read(probe.data(), static_cast<std::streamsize>(probeSize));
         size_t got = static_cast<size_t>(fin.gcount());
-        if (got == 0) { err = "HDF文件为空"; return false; }
+        if (got == 0) {
+            err = "HDF文件为空";
+            return false;
+        }
 
         std::string probeText(probe.data(), probe.data() + got);
         {
@@ -190,20 +227,20 @@ namespace {
                 continue;
             }
 
-            if (key == "kind") meta.kind = ToLowerCopy(val);
-            else if (key == "byte order") meta.byteOrder = ToLowerCopy(val);
-            else if (key == "implementation type") meta.implementationType = ToLowerCopy(val);
-            else if (key == "scan mode") meta.scanMode = ToLowerCopy(val);
+            if (key == "kind") meta.kind = val;
+            else if (key == "byte order") meta.byteOrder = val;
+            else if (key == "scan mode") meta.scanMode = val;
             else if (key == "ch order") meta.chOrderRaw = val;
-            else if (key == "data org") meta.dataOrgRaw = ToLowerCopy(val);
+            else if (key == "data org") meta.dataOrgRaw = val;
             else if (key == "nbr of channel") meta.nChannels = SafeParse<size_t>(val, 1);
             else if (key == "nbr of scans") meta.nScans = SafeParse<size_t>(val, 0);
             else if (key == "delta value") meta.deltaValue = SafeParse<double>(val, 0.0);
             else if (key == "first value") meta.firstValue = SafeParse<double>(val, 0.0);
             else if (inChannelDef && key == "name str") curCh.name = val.empty() ? "Channel" : val;
-            else if (inChannelDef && key == "physical unit") curCh.unit = val.empty() ? "-" : val;
             else if (inChannelDef && key == "title str") curCh.label = val;
-            else if (inChannelDef && key == "physical quantity") curCh.quantity = ToLowerCopy(val);
+            else if (inChannelDef && key == "physical unit") curCh.unit = val.empty() ? "-" : val;
+            else if (inChannelDef && key == "physical quantity") curCh.quantity = val;
+            else if (inChannelDef && key == "implementation type") curCh.implementationType = val;
         }
 
         if (hasCurCh) meta.channels.push_back(curCh);
@@ -217,13 +254,14 @@ namespace {
                 meta.channels[i].label = "";
                 meta.channels[i].quantity = "";
                 meta.channels[i].dof = "-";
+                meta.channels[i].implementationType = "FLOAT32";
             }
         }
         else if (meta.channels.size() > meta.nChannels) {
             meta.channels.resize(meta.nChannels);
         }
 
-        // 扩展区读取 DOF
+        // 扩展区 DOF
         {
             std::istringstream exss(headerText);
             std::string ln;
@@ -236,8 +274,7 @@ namespace {
                     std::string inner = t.substr(1, t.size() - 2);
                     std::string low = ToLowerCopy(inner);
                     if (low.rfind("channel", 0) == 0) {
-                        std::string idxStr = inner.substr(7);
-                        currentExtCh = SafeParse<int>(idxStr, -1);
+                        currentExtCh = SafeParse<int>(inner.substr(7), -1);
                     }
                     else {
                         currentExtCh = -1;
@@ -246,7 +283,6 @@ namespace {
                 }
 
                 if (currentExtCh < 0) continue;
-
                 auto p = t.find('=');
                 if (p == std::string::npos) continue;
 
@@ -270,26 +306,24 @@ namespace {
         return true;
     }
 
-    static bool IsTimeKind(const HDFMeta& m) { return m.kind.find("time data") != std::string::npos; }
-    static bool IsComplexKind(const HDFMeta& m) {
-        if (m.implementationType.find("complex") != std::string::npos) return true;
-        if (m.kind.find("transfer") != std::string::npos) return true;
-        if (m.kind.find("auto") != std::string::npos) return true;
-        if (m.kind.find("coh") != std::string::npos) return true;
-        return false;
-    }
-    static bool IsLittleEndianFile(const HDFMeta& m) { return m.byteOrder.find("intel") != std::string::npos; }
-    static bool IsSimultaneous(const HDFMeta& m) {
-        return ToLowerCopy(m.scanMode).find("simultaneous") != std::string::npos;
-    }
+    // ========================= ch order解析 =========================
+    // 规则：
+    // - X*N => 第N通道为比例通道，coeff=X
+    // - N   => 第N通道固定1000Hz
+    static bool BuildChannelRateRules(const HDFMeta& meta, std::vector<ChannelRateRule>& rules) {
+        rules.assign(meta.nChannels, ChannelRateRule{});
 
-    // 裸数字按 channel 解析（repeat=1）
-    static bool ParseChOrderTokens(const HDFMeta& meta, std::vector<ChOrderToken>& out) {
-        out.clear();
-        if (meta.chOrderRaw.empty()) return false;
+        if (meta.chOrderRaw.empty()) {
+            for (size_t i = 0; i < meta.nChannels; ++i) {
+                rules[i].coeff = 1;
+            }
+            return true;
+        }
 
         std::string s = meta.chOrderRaw;
-        for (char& c : s) if (c == ',' || c == ';' || c == '\t') c = ' ';
+        for (char& c : s) {
+            if (c == ',' || c == ';' || c == '\t') c = ' ';
+        }
 
         std::stringstream ss(s);
         std::string tok;
@@ -300,134 +334,192 @@ namespace {
 
             auto p = tok.find('*');
             if (p != std::string::npos) {
-                size_t rep = SafeParse<size_t>(tok.substr(0, p), 0);
-                size_t ch = SafeParse<size_t>(tok.substr(p + 1), 0);
-                if (rep == 0 || ch == 0) continue;
-                out.push_back({ rep, ch });
+                size_t x = SafeParse<size_t>(tok.substr(0, p), 0);
+                size_t n = SafeParse<size_t>(tok.substr(p + 1), 0);
+                if (x == 0 || n == 0 || n > meta.nChannels) continue;
+                rules[n - 1].fixed1000 = false;
+                rules[n - 1].coeff = x;
             }
             else {
-                size_t ch = SafeParse<size_t>(tok, 0);
-                if (ch == 0) continue;
-                out.push_back({ 1, ch });
+                size_t n = SafeParse<size_t>(tok, 0);
+                if (n == 0 || n > meta.nChannels) continue;
+                rules[n - 1].fixed1000 = true;
+                rules[n - 1].coeff = 0;
             }
         }
-        return !out.empty();
-    }
 
-    static bool BuildRepPerChannel(const HDFMeta& meta, std::vector<size_t>& repPerCh) {
-        repPerCh.assign(meta.nChannels, 0);
-
-        std::vector<ChOrderToken> tokens;
-        if (!ParseChOrderTokens(meta, tokens)) return false;
-
-        for (const auto& t : tokens) {
-            if (t.channel >= 1 && t.channel <= meta.nChannels) {
-                repPerCh[t.channel - 1] += t.repeat;
+        // 未覆盖的通道回退为比例1
+        for (size_t i = 0; i < rules.size(); ++i) {
+            if (!rules[i].fixed1000 && rules[i].coeff == 0) {
+                rules[i].coeff = 1;
             }
         }
+
         return true;
     }
 
-    static double ComputeInternalFs(size_t rep, double delta) {
-        if (delta <= 0.0 || rep == 0) return 0.0;
-        return static_cast<double>(rep) / delta;
-    }
-
-    // 按 delta + repeat 自动推导 effectiveFs
-    // Fbase = (1/delta) / maxRepeat
-    // Fi = repeat_i * Fbase
-    static bool ComputeEffectiveFsFromDeltaAndRepeat(
-        const std::vector<size_t>& repPerCh,
-        double delta,
-        std::vector<double>& outEffectiveFs)
+    // ========================= 采样率计算 =========================
+    // simultaneous:
+    //   Fi = Fbase
+    // synchronised multiple:
+    //   C1000 = 固定1000Hz通道个数
+    //   S = 比例通道coeff之和（不包含1000Hz）
+    //   Fremain = Fbase - C1000*1000
+    //   K = Fremain / S
+    //   比例通道: Fi = Xi*K
+    //   固定通道: Fi = 1000
+    static bool ComputePerChannelFs(const HDFMeta& meta,
+        const std::vector<ChannelRateRule>& rules,
+        std::vector<double>& outFs,
+        double& outFbase,
+        double& outK,
+        size_t& outSumCoeff,
+        size_t& outFixed1000Count,
+        double& outFremain)
     {
-        outEffectiveFs.clear();
-        if (repPerCh.empty() || delta <= 0.0) return false;
+        outFs.clear();
+        outFbase = 0.0;
+        outK = 0.0;
+        outSumCoeff = 0;
+        outFixed1000Count = 0;
+        outFremain = 0.0;
 
-        size_t rmax = 0;
-        for (size_t r : repPerCh) rmax = std::max(rmax, r);
-        if (rmax == 0) return false;
+        if (meta.deltaValue <= 0.0 || rules.empty()) return false;
 
-        double globalFs = 1.0 / delta;
-        double fbase = globalFs / static_cast<double>(rmax);
+        outFbase = 1.0 / meta.deltaValue;
 
-        outEffectiveFs.resize(repPerCh.size(), 0.0);
-        for (size_t i = 0; i < repPerCh.size(); ++i) {
-            outEffectiveFs[i] = static_cast<double>(repPerCh[i]) * fbase;
+        if (IsSimultaneous(meta)) {
+            outFs.assign(rules.size(), outFbase);
+            outK = outFbase;
+            outSumCoeff = rules.size();
+            outFixed1000Count = 0;
+            outFremain = outFbase;
+            return true;
         }
-        return true;
-    }
 
-    static bool ExtractChannelData(const HDFMeta& meta,
-        const std::vector<unsigned char>& raw,
-        size_t targetCh,
-        std::vector<float>& outData)
-    {
-        outData.clear();
+        if (IsSynchronisedMultiple(meta)) {
+            size_t S = 0;
+            size_t C1000 = 0;
+            for (const auto& r : rules) {
+                if (r.fixed1000) ++C1000;
+                else S += r.coeff;
+            }
 
-        const bool littleFile = IsLittleEndianFile(meta);
-        const bool isComplex = IsComplexKind(meta);
-        const size_t bytesPerSample = isComplex ? sizeof(float) * 2 : sizeof(float);
+            if (S == 0) return false;
 
-        if (IsSimultaneous(meta) && meta.chOrderRaw.find('*') == std::string::npos) {
-            const size_t expectedBytes = meta.nScans * meta.nChannels * bytesPerSample;
-            if (raw.size() < expectedBytes) return false;
+            double Fremain = outFbase - static_cast<double>(C1000) * 1000.0;
+            if (Fremain <= 0.0) return false;
 
-            outData.resize(meta.nScans);
-            for (size_t i = 0; i < meta.nScans; ++i) {
-                size_t idx = i * meta.nChannels + targetCh;
-                const unsigned char* p = raw.data() + idx * bytesPerSample;
-                if (!isComplex) outData[i] = ReadF32(p, littleFile);
-                else {
-                    float re = ReadF32(p, littleFile);
-                    float im = ReadF32(p + sizeof(float), littleFile);
-                    outData[i] = std::sqrt(re * re + im * im);
-                }
+            outSumCoeff = S;
+            outFixed1000Count = C1000;
+            outFremain = Fremain;
+            outK = Fremain / static_cast<double>(S);
+
+            outFs.resize(rules.size(), 0.0);
+            for (size_t i = 0; i < rules.size(); ++i) {
+                if (rules[i].fixed1000) outFs[i] = 1000.0;
+                else outFs[i] = static_cast<double>(rules[i].coeff) * outK;
             }
             return true;
         }
 
-        std::vector<ChOrderToken> tokens;
-        if (!ParseChOrderTokens(meta, tokens)) return false;
+        // 未知scan mode回退为同频
+        outFs.assign(rules.size(), outFbase);
+        outK = outFbase;
+        outSumCoeff = rules.size();
+        outFixed1000Count = 0;
+        outFremain = outFbase;
+        return true;
+    }
 
-        size_t samplesPerBlockAll = 0;
-        size_t targetPerBlock = 0;
-        for (const auto& t : tokens) {
-            samplesPerBlockAll += t.repeat;
-            if (t.channel >= 1 && t.channel <= meta.nChannels && (t.channel - 1) == targetCh) {
-                targetPerBlock += t.repeat;
+    // ========================= 数据读取 =========================
+    // simultaneous:
+    //   每帧每通道1点
+    // synchronised multiple:
+    //   X*N 通道：每帧 Xi 点
+    //   单独N通道：每帧 1 点
+    static bool ExtractChannelData(const HDFMeta& meta,
+        const std::vector<unsigned char>& raw,
+        size_t targetCh,
+        const std::vector<ChannelRateRule>& rules,
+        std::vector<float>& outData)
+    {
+        outData.clear();
+        if (targetCh >= meta.nChannels) return false;
+
+        const bool littleFile = IsLittleEndianFile(meta);
+
+        if (IsSimultaneous(meta)) {
+            size_t bytesPerFrame = 0;
+            for (size_t i = 0; i < meta.nChannels; ++i) {
+                bytesPerFrame += BytesPerSampleFromImpl(meta.channels[i].implementationType);
             }
-        }
-        if (samplesPerBlockAll == 0 || targetPerBlock == 0) return false;
+            if (bytesPerFrame == 0 || raw.size() < bytesPerFrame) return false;
 
-        const size_t bytesPerBlock = samplesPerBlockAll * bytesPerSample;
-        if (bytesPerBlock == 0 || raw.size() < bytesPerBlock) return false;
+            size_t nFrames = raw.size() / bytesPerFrame;
+            outData.reserve(nFrames);
 
-        const size_t nBlocks = raw.size() / bytesPerBlock;
-        outData.reserve(nBlocks * targetPerBlock);
-
-        for (size_t b = 0; b < nBlocks; ++b) {
-            const unsigned char* blockBase = raw.data() + b * bytesPerBlock;
-            size_t offsetSamples = 0;
-
-            for (const auto& t : tokens) {
-                size_t ch0 = t.channel - 1;
-                for (size_t r = 0; r < t.repeat; ++r) {
-                    if (ch0 == targetCh) {
-                        const unsigned char* p = blockBase + (offsetSamples + r) * bytesPerSample;
-                        if (!isComplex) outData.push_back(ReadF32(p, littleFile));
+            for (size_t f = 0; f < nFrames; ++f) {
+                const unsigned char* frameBase = raw.data() + f * bytesPerFrame;
+                size_t off = 0;
+                for (size_t ch = 0; ch < meta.nChannels; ++ch) {
+                    size_t bps = BytesPerSampleFromImpl(meta.channels[ch].implementationType);
+                    if (ch == targetCh) {
+                        std::string impl = ToLowerCopy(meta.channels[ch].implementationType);
+                        if (impl.find("uint32") != std::string::npos) {
+                            outData.push_back(static_cast<float>(ReadU32(frameBase + off, littleFile)));
+                        }
                         else {
-                            float re = ReadF32(p, littleFile);
-                            float im = ReadF32(p + sizeof(float), littleFile);
-                            outData.push_back(std::sqrt(re * re + im * im));
+                            outData.push_back(ReadF32(frameBase + off, littleFile));
                         }
                     }
+                    off += bps;
                 }
-                offsetSamples += t.repeat;
             }
+            return !outData.empty();
         }
 
-        return !outData.empty();
+        if (IsSynchronisedMultiple(meta)) {
+            auto sampleCountPerFrame = [&](size_t ch) -> size_t {
+                return rules[ch].fixed1000 ? 1 : std::max<size_t>(rules[ch].coeff, 1);
+                };
+
+            size_t bytesPerFrame = 0;
+            for (size_t i = 0; i < meta.nChannels; ++i) {
+                bytesPerFrame += sampleCountPerFrame(i) * BytesPerSampleFromImpl(meta.channels[i].implementationType);
+            }
+            if (bytesPerFrame == 0 || raw.size() < bytesPerFrame) return false;
+
+            size_t nFrames = raw.size() / bytesPerFrame;
+            outData.reserve(nFrames * sampleCountPerFrame(targetCh));
+
+            for (size_t f = 0; f < nFrames; ++f) {
+                const unsigned char* frameBase = raw.data() + f * bytesPerFrame;
+                size_t off = 0;
+
+                for (size_t ch = 0; ch < meta.nChannels; ++ch) {
+                    size_t bps = BytesPerSampleFromImpl(meta.channels[ch].implementationType);
+                    size_t count = sampleCountPerFrame(ch);
+                    std::string impl = ToLowerCopy(meta.channels[ch].implementationType);
+
+                    for (size_t k = 0; k < count; ++k) {
+                        if (ch == targetCh) {
+                            const unsigned char* p = frameBase + off + k * bps;
+                            if (impl.find("uint32") != std::string::npos) {
+                                outData.push_back(static_cast<float>(ReadU32(p, littleFile)));
+                            }
+                            else {
+                                outData.push_back(ReadF32(p, littleFile));
+                            }
+                        }
+                    }
+                    off += count * bps;
+                }
+            }
+            return !outData.empty();
+        }
+
+        return false;
     }
 
 } // namespace
@@ -451,47 +543,42 @@ bool FFT11_HDFReader::GetAllChannels(const std::string& hdfPath,
         return false;
     }
 
-    const bool simultaneous = IsSimultaneous(meta);
-    const double globalFs = 1.0 / meta.deltaValue;
-    sampleRate = simultaneous ? globalFs : 0.0;
+    std::vector<ChannelRateRule> rules;
+    if (!BuildChannelRateRules(meta, rules)) {
+        std::cerr << "[错误] ch order 解析失败: " << hdfPath << std::endl;
+        return false;
+    }
 
-    std::vector<size_t> repPerCh;
-    if (!BuildRepPerChannel(meta, repPerCh)) repPerCh.assign(meta.nChannels, 1);
+    std::vector<double> fsPerCh;
+    double fbase = 0.0, K = 0.0, Fremain = 0.0;
+    size_t S = 0, C1000 = 0;
+    if (!ComputePerChannelFs(meta, rules, fsPerCh, fbase, K, S, C1000, Fremain)) {
+        std::cerr << "[错误] 采样率计算失败: " << hdfPath << std::endl;
+        return false;
+    }
 
-    std::vector<double> effectiveFsVec;
-    bool hasEffective = ComputeEffectiveFsFromDeltaAndRepeat(repPerCh, meta.deltaValue, effectiveFsVec);
+    sampleRate = fbase;
 
     outChannels.reserve(meta.nChannels);
     for (size_t i = 0; i < meta.nChannels; ++i) {
         HDFChannelInfo ch;
         ch.channelName = meta.channels[i].name.empty() ? ("Channel " + std::to_string(i + 1)) : meta.channels[i].name;
         ch.channelLabel = meta.channels[i].label.empty() ? ch.channelName : meta.channels[i].label;
-        ch.dataType = IsComplexKind(meta) ? "COMPLEX_FLOAT32" : "FLOAT32";
+        ch.dataType = meta.channels[i].implementationType;
         ch.dataLength = meta.nScans;
         ch.dataOffset = meta.startOfData;
         ch.unit = meta.channels[i].unit.empty() ? "-" : meta.channels[i].unit;
         ch.dof = meta.channels[i].dof.empty() ? "-" : meta.channels[i].dof;
 
-        size_t rep = (i < repPerCh.size() ? repPerCh[i] : 1);
-        if (rep == 0) rep = 1;
+        double fi = (i < fsPerCh.size() ? fsPerCh[i] : fbase);
 
-        double internalFs = ComputeInternalFs(rep, meta.deltaValue);
-        bool internalTrusted = (internalFs > 0.0 && std::isfinite(internalFs));
+        ch.sampleRate = fi;
+        ch.sampleRateTrusted = (fi > 0.0 && std::isfinite(fi));
 
-        double effectiveFs = 0.0;
-        bool effectiveTrusted = false;
-        if (hasEffective && i < effectiveFsVec.size()) {
-            effectiveFs = effectiveFsVec[i];
-            effectiveTrusted = (effectiveFs > 0.0 && std::isfinite(effectiveFs));
-        }
-
-        ch.sampleRate = effectiveFs;
-        ch.sampleRateTrusted = effectiveTrusted;
-
-        ch.internalSampleRate = internalFs;
-        ch.internalSampleRateTrusted = internalTrusted;
-        ch.effectiveSampleRate = effectiveFs;
-        ch.effectiveSampleRateTrusted = effectiveTrusted;
+        ch.internalSampleRate = fi;
+        ch.internalSampleRateTrusted = ch.sampleRateTrusted;
+        ch.effectiveSampleRate = fi;
+        ch.effectiveSampleRateTrusted = ch.sampleRateTrusted;
 
         outChannels.push_back(std::move(ch));
     }
@@ -502,7 +589,11 @@ bool FFT11_HDFReader::GetAllChannels(const std::string& hdfPath,
         << ", nChannels=" << meta.nChannels
         << ", nScans=" << meta.nScans
         << ", delta=" << meta.deltaValue
-        << ", globalFs=" << globalFs
+        << ", Fbase=" << fbase
+        << ", fixed1000Count=" << C1000
+        << ", Fremain=" << Fremain
+        << ", SumCoeff=" << S
+        << ", K=" << K
         << ", chOrderRaw=" << meta.chOrderRaw
         << ", dataOrg=" << meta.dataOrgRaw
         << std::endl;
@@ -512,8 +603,8 @@ bool FFT11_HDFReader::GetAllChannels(const std::string& hdfPath,
             << " name=" << outChannels[i].channelName
             << " unit=" << outChannels[i].unit
             << " dof=" << outChannels[i].dof
-            << " internalFs=" << outChannels[i].internalSampleRate
-            << " effectiveFs=" << outChannels[i].effectiveSampleRate
+            << " Fs=" << outChannels[i].sampleRate
+            << (rules[i].fixed1000 ? " [fixed1000]" : " [ratio]")
             << std::endl;
     }
 
@@ -546,10 +637,8 @@ bool FFT11_HDFReader::ReadChannelDataWithFsQuality(const std::string& hdfPath,
         return false;
     }
 
-    if (meta.nChannels == 0 || meta.nScans == 0 || meta.deltaValue <= 0.0) {
-        std::cerr << "[错误] HDF元数据无效: nChannels=" << meta.nChannels
-            << ", nScans=" << meta.nScans
-            << ", delta=" << meta.deltaValue << std::endl;
+    if (!IsTimeKind(meta) || meta.nChannels == 0 || meta.deltaValue <= 0.0) {
+        std::cerr << "[错误] HDF元数据无效: " << hdfPath << std::endl;
         return false;
     }
 
@@ -570,6 +659,20 @@ bool FFT11_HDFReader::ReadChannelDataWithFsQuality(const std::string& hdfPath,
     }
     if (targetCh == std::numeric_limits<size_t>::max()) {
         std::cerr << "[错误] 未找到指定通道: " << channelName << std::endl;
+        return false;
+    }
+
+    std::vector<ChannelRateRule> rules;
+    if (!BuildChannelRateRules(meta, rules)) {
+        std::cerr << "[错误] ch order 解析失败: " << hdfPath << std::endl;
+        return false;
+    }
+
+    std::vector<double> fsPerCh;
+    double fbase = 0.0, K = 0.0, Fremain = 0.0;
+    size_t S = 0, C1000 = 0;
+    if (!ComputePerChannelFs(meta, rules, fsPerCh, fbase, K, S, C1000, Fremain)) {
+        std::cerr << "[错误] 采样率计算失败: " << hdfPath << std::endl;
         return false;
     }
 
@@ -595,39 +698,24 @@ bool FFT11_HDFReader::ReadChannelDataWithFsQuality(const std::string& hdfPath,
         return false;
     }
 
-    if (!ExtractChannelData(meta, raw, targetCh, outData) || outData.empty()) {
+    if (!ExtractChannelData(meta, raw, targetCh, rules, outData) || outData.empty()) {
         std::cerr << "[错误] 通道数据解析失败: " << channelName << std::endl;
         return false;
     }
 
-    std::vector<size_t> repPerCh;
-    if (!BuildRepPerChannel(meta, repPerCh)) repPerCh.assign(meta.nChannels, 1);
-
-    std::vector<double> effectiveFsVec;
-    bool hasEffective = ComputeEffectiveFsFromDeltaAndRepeat(repPerCh, meta.deltaValue, effectiveFsVec);
-
-    if (hasEffective && targetCh < effectiveFsVec.size()) {
-        sampleRate = effectiveFsVec[targetCh];
-        sampleRateTrusted = (sampleRate > 0.0 && std::isfinite(sampleRate));
-    }
-    else {
-        size_t rep = (targetCh < repPerCh.size() ? repPerCh[targetCh] : 1);
-        sampleRate = ComputeInternalFs(rep == 0 ? 1 : rep, meta.deltaValue);
-        sampleRateTrusted = false;
-    }
-
-    double internalFs = 0.0;
-    {
-        size_t rep = (targetCh < repPerCh.size() ? repPerCh[targetCh] : 1);
-        internalFs = ComputeInternalFs(rep == 0 ? 1 : rep, meta.deltaValue);
-    }
+    sampleRate = (targetCh < fsPerCh.size() ? fsPerCh[targetCh] : fbase);
+    sampleRateTrusted = (sampleRate > 0.0 && std::isfinite(sampleRate));
 
     std::cout << "[DEBUG] HDF ReadChannelDataWithFsQuality:"
         << " channel=" << channelName
         << ", outData.size=" << outData.size()
-        << ", internalFs=" << internalFs
-        << ", effectiveFs=" << sampleRate
+        << ", Fs=" << sampleRate
         << ", trusted=" << sampleRateTrusted
+        << ", Fbase=" << fbase
+        << ", fixed1000Count=" << C1000
+        << ", Fremain=" << Fremain
+        << ", SumCoeff=" << S
+        << ", K=" << K
         << ", scanMode=" << meta.scanMode
         << ", chOrderRaw=" << meta.chOrderRaw
         << std::endl;

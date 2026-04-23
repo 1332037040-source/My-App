@@ -86,15 +86,12 @@ namespace {
     static std::string HzTextFromHdfChannel(const HDFChannelInfo& hc) {
         double fHz = 0.0;
 
-        // 优先工程层
         if (hc.effectiveSampleRate > 0.0 && std::isfinite(hc.effectiveSampleRate)) {
             fHz = hc.effectiveSampleRate;
         }
-        // 其次兼容层
         else if (hc.sampleRate > 0.0 && std::isfinite(hc.sampleRate)) {
             fHz = hc.sampleRate;
         }
-        // 再其次内部层
         else if (hc.internalSampleRate > 0.0 && std::isfinite(hc.internalSampleRate)) {
             fHz = hc.internalSampleRate;
         }
@@ -384,7 +381,7 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
                 files[fi].channels.push_back(ToATFXLike(hc));
             }
 
-            // 保留兼容字段，但HDF列表显示不再依赖它
+            // 新HDFReader里，这里保存的是文件级基础频率 Fbase = 1/delta
             files[fi].fs = fs;
 
             std::cout << "\n>>> 文件[" << (fi + 1) << "] " << files[fi].path << " [HDF]\n";
@@ -434,8 +431,6 @@ bool TaskPlanner::LoadAndSelectChannels(std::vector<FileItem>& files) {
     return true;
 }
 
-// 你后面的 ConfigureParamsAndBuildJobs 保持原样（你贴的那段已经很长）
-// 为不破坏业务，这里直接沿用你原文件中的完整实现。
 bool TaskPlanner::ConfigureParamsAndBuildJobs(std::vector<FileItem>& files, std::vector<Job>& jobs) {
     jobs.clear();
 

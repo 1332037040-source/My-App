@@ -9,6 +9,9 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include <iostream>
+#include <iomanip>
+#include <algorithm>
 
 JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
 {
@@ -39,14 +42,17 @@ JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
     const std::string chName = sig.channelName.empty() ? "CH1" : sig.channelName;
     const std::string outBasePath = sig.sourcePath.empty() ? file.path : sig.sourcePath;
 
-    // 1) 导出时域信号
-    r.timeCsvPath = Utils::get_unique_path(outBasePath, "_" + chName + "_timesignal.csv");
-    if (!exportSvc.WriteTimeSignal(x, r.timeCsvPath, err)) {
-        r.message = err.empty() ? "时间CSV写入失败" : err;
-        return r;
+    if (job.writeCsvToDisk) {
+        r.timeCsvPath = Utils::get_unique_path(outBasePath, "_" + chName + "_timesignal.csv");
+        if (!exportSvc.WriteTimeSignal(x, r.timeCsvPath, err)) {
+            r.message = err.empty() ? "时间CSV写入失败" : err;
+            return r;
+        }
+    }
+    else {
+        r.timeCsvPath.clear();
     }
 
-    // 2) 统一由 SpectrumService 做 FFT + 加权
     CVector fft;
     if (!spectrumSvc.ComputeWeightedAveragedFFT(sig, job, fft, err)) {
         if (!err.empty()) r.message = err;
@@ -56,7 +62,6 @@ JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
         return r;
     }
 
-    // 3) 计算 octave
     const size_t nfft = fft.size();
     const size_t nbins = nfft / 2 + 1;
     std::vector<double> avgMag(nbins, 0.0);
@@ -73,25 +78,27 @@ JobResult OctaveFlow::Run(const Job& job, const FileItem& file)
         bandType, job.params.octaveRefValue, job.params.calibrationFactor
     );
 
-    // 4) 导出 octave（改为 ExportService）
-    r.fftCsvPath = Utils::get_unique_path(outBasePath, "_" + chName + "_octave.csv");
-    if (!exportSvc.WriteOctave(octaveResult, r.fftCsvPath, err)) {
-        r.message = err.empty() ? "倍频程CSV写入失败" : err;
-        return r;
+    if (job.writeCsvToDisk) {
+        r.fftCsvPath = Utils::get_unique_path(outBasePath, "_" + chName + "_octave.csv");
+        if (!exportSvc.WriteOctave(octaveResult, r.fftCsvPath, err)) {
+            r.message = err.empty() ? "倍频程CSV写入失败" : err;
+            return r;
+        }
+    }
+    else {
+        r.fftCsvPath.clear();
     }
 
-    // 5) 峰值：统一走 SpectrumService 通用接口
     if (!octaveResult.bandValues.empty() && !octaveResult.bandCenters.empty()) {
         r.peak = spectrumSvc.CalcPeakFromValues(octaveResult.bandValues, octaveResult.bandCenters);
     }
 
-    // 6) 新增：内存2D结果（供Qt直接绘图）
     r.curveX = octaveResult.bandCenters;
     r.curveY = octaveResult.bandValues;
-    r.curveIsDb = true; // octave通常为dB
+    r.curveIsDb = false;
     r.curveXUnit = "Hz";
-    r.curveYUnit = "dB";
-    r.curveName = chName + ((job.params.bandsPerOctave == 1) ? "_Octave_1_1" : "_Octave_1_3");
+    r.curveYUnit = "Pa";
+    r.curveName = chName + ((job.params.bandsPerOctave == 1) ? "_Octave_1_1_Pa" : "_Octave_1_3_Pa");
 
     r.ok = true;
     r.message = "OK";

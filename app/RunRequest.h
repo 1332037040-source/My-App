@@ -25,4 +25,7 @@ struct RunRequest {
     size_t maxThreads = 0;   // 0=auto
     int maxRetries = 1;
     bool enableCancel = false;
+
+    // 新增：是否写 CSV 到磁盘
+    bool writeCsvToDisk = false;
 };

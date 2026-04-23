@@ -15,6 +15,7 @@
 #include <limits>
 #include <iostream>
 #include <algorithm>
+#include <iomanip>
 
 namespace
 {
@@ -106,32 +107,6 @@ namespace
             t += offsetSec;
             if (t < 0.0) t = 0.0;
         }
-    }
-
-    void PrintSignalPreview(const std::vector<double>& x, const std::string& name)
-    {
-        if (x.empty()) {
-            std::cout << "[DEBUG] " << name << ": empty" << std::endl;
-            return;
-        }
-
-        const size_t mid = x.size() / 2;
-        double xmin = std::numeric_limits<double>::infinity();
-        double xmax = -std::numeric_limits<double>::infinity();
-
-        for (double v : x) {
-            xmin = std::min(xmin, v);
-            xmax = std::max(xmax, v);
-        }
-
-        std::cout << "[DEBUG] " << name
-            << ": size=" << x.size()
-            << ", first=" << x.front()
-            << ", mid=" << x[mid]
-            << ", last=" << x.back()
-            << ", min=" << xmin
-            << ", max=" << xmax
-            << std::endl;
     }
 
     std::vector<double> ResampleRpmToMainAxis(
@@ -257,7 +232,7 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
     }
 
     Spectrogram sp = FFTvsTimeAnalyzer::Compute(analysisSignal, analysisFs, job.params);
-    if (sp.timeBins == 0 || sp.freqBins == 0 || sp.dataDb.empty()) {
+    if (sp.timeBins == 0 || sp.freqBins == 0 || sp.dataLinear.empty()) {
         r.message = "FFT vs time º∆À„ ß∞‹";
         return r;
     }
@@ -290,13 +265,17 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
         ? "_" + chName + "_order_vs_rpm.csv"
         : "_" + chName + "_fft_vs_rpm.csv";
 
-    r.fftCsvPath = Utils::get_unique_path(outBasePath, suffix);
-    if (!exportSvc.WriteRpmSpectrogram(rpmSp, r.fftCsvPath, err)) {
-        r.message = err.empty() ? "FFT vs rpm CSV–¥»Î ß∞‹" : err;
-        return r;
+    if (job.writeCsvToDisk) {
+        r.fftCsvPath = Utils::get_unique_path(outBasePath, suffix);
+        if (!exportSvc.WriteRpmSpectrogram(rpmSp, r.fftCsvPath, err)) {
+            r.message = err.empty() ? "FFT vs rpm CSV–¥»Î ß∞‹" : err;
+            return r;
+        }
+    }
+    else {
+        r.fftCsvPath.clear();
     }
 
-    // ƒ⁄¥Ê3DΩ·π˚
     r.heatmapFreqFrames = BuildFreqFrames(rpmSp);
     r.heatmapAmpFrames = BuildAmpFrames(rpmSp);
 
@@ -305,10 +284,10 @@ JobResult FFTvsRpmFlow::Run(const Job& job, const FileItem& file)
         return r;
     }
 
-    r.heatmapIsDb = true;
+    r.heatmapIsDb = false;
     r.heatmapXUnit = "Hz";
     r.heatmapYUnit = "RPM";
-    r.heatmapZUnit = "dB";
+    r.heatmapZUnit = "Pa";
 
     r.ok = true;
     r.message = "OK";

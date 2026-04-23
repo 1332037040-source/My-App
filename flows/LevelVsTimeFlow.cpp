@@ -46,19 +46,39 @@ JobResult LevelVsTimeFlow::Run(const Job& job, const FileItem& file)
         return r;
     }
 
-    r.levelVsTimeCsvPath = Utils::get_unique_path(
-        outBasePath,
-        "_" + chName + "_level_vs_time.csv");
+    if (job.writeCsvToDisk) {
+        r.levelVsTimeCsvPath = Utils::get_unique_path(
+            outBasePath,
+            "_" + chName + "_level_vs_time.csv");
 
-    if (!exportSvc.WriteLevelVsTime(series, r.levelVsTimeCsvPath, err)) {
-        r.message = err.empty() ? "Level vs Time CSV写入失败" : err;
-        return r;
+        if (!exportSvc.WriteLevelVsTime(series, r.levelVsTimeCsvPath, err)) {
+            r.message = err.empty() ? "Level vs Time CSV写入失败" : err;
+            return r;
+        }
     }
+    else {
+        r.levelVsTimeCsvPath.clear();
+    }
+
+    r.curveX.clear();
+    r.curveY.clear();
+    r.curveX.reserve(series.points.size());
+    r.curveY.reserve(series.points.size());
+
+    for (const auto& pt : series.points) {
+        r.curveX.push_back(pt.timeSec);
+        r.curveY.push_back(pt.levelPa);
+    }
+
+    r.curveIsDb = false;
+    r.curveXUnit = "s";
+    r.curveYUnit = "Pa";
+    r.curveName = "Level vs Time (Pa)";
 
     r.ok = true;
     r.message = "OK";
     r.peak.freq = 0.0;
-    r.peak.mag = series.maxLevelDb;
+    r.peak.mag = series.maxLevelPa;
 
     return r;
 }

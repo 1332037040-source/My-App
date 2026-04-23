@@ -1,6 +1,7 @@
 ﻿#include "LevelVsTimeAnalyzer.h"
 #include "preprocess/Preprocessing.h"
 #include "preprocess/Weighting.h"
+#include "preprocess/TimeWeighting.h"
 
 #include <algorithm>
 #include <cmath>
@@ -15,6 +16,11 @@ namespace LevelVsTimeAnalyzer {
 
         // ===== 调试开关 =====
         constexpr bool kEnableDebugLog = true;
+
+        // ===== 对标开关：指数计权(F/S/I/Manual)导出策略 =====
+        // false: 块均值（原逻辑）
+        // true : 每块取末样点（更接近部分仪器显示/导出方式）
+        constexpr bool kUseSampleLastForExpWeighting = true;
 
         const char* toTimeWeightingModeStr(TimeWeightingMode mode)
         {
@@ -51,8 +57,6 @@ namespace LevelVsTimeAnalyzer {
             TimeWeightingMode mode,
             double outputStepSec,
             size_t outputStepSamples,
-            double ref,
-            double refPower,
             double cal,
             double fs)
         {
@@ -62,10 +66,10 @@ namespace LevelVsTimeAnalyzer {
             std::cout << "[LevelVsTimeAnalyzer] parsed mode      : " << toTimeWeightingModeStr(mode) << "\n";
             std::cout << "[LevelVsTimeAnalyzer] outputStepSec    : " << outputStepSec << "\n";
             std::cout << "[LevelVsTimeAnalyzer] outputStepSamples: " << outputStepSamples << "\n";
-            std::cout << "[LevelVsTimeAnalyzer] ref              : " << ref << "\n";
-            std::cout << "[LevelVsTimeAnalyzer] refPower         : " << refPower << "\n";
             std::cout << "[LevelVsTimeAnalyzer] calibrationFactor: " << cal << "\n";
             std::cout << "[LevelVsTimeAnalyzer] dt(1/fs)         : " << (fs > 0.0 ? 1.0 / fs : 0.0) << "\n";
+            std::cout << "[LevelVsTimeAnalyzer] export(exp)      : "
+                << (kUseSampleLastForExpWeighting ? "sample_last" : "block_mean") << "\n";
         }
 
         void debugPrintModeConstants(TimeWeightingMode mode, const FFTParams& p)
@@ -91,11 +95,10 @@ namespace LevelVsTimeAnalyzer {
             }
         }
 
-        double safeDbPower(double power, double refPower)
+        double safePaFromPower(double power)
         {
-            const double denom = (refPower > EPS) ? refPower : EPS;
-            const double num = (power > EPS) ? power : EPS;
-            return 10.0 * std::log10(num / denom);
+            const double p = (power > EPS) ? power : EPS;
+            return std::sqrt(p); // Pa = sqrt(Pa^2)
         }
 
         double clampPositive(double v, double fallbackValue)
@@ -103,16 +106,16 @@ namespace LevelVsTimeAnalyzer {
             return (v > 0.0) ? v : fallbackValue;
         }
 
-        void updateMinMax(LevelSeries& out, double db, bool& first)
+        void updateMinMax(LevelSeries& out, double pa, bool& first)
         {
             if (first) {
-                out.maxLevelDb = db;
-                out.minLevelDb = db;
+                out.maxLevelPa = pa;
+                out.minLevelPa = pa;
                 first = false;
             }
             else {
-                out.maxLevelDb = std::max(out.maxLevelDb, db);
-                out.minLevelDb = std::min(out.minLevelDb, db);
+                out.maxLevelPa = std::max(out.maxLevelPa, pa);
+                out.minLevelPa = std::min(out.minLevelPa, pa);
             }
         }
 
@@ -121,7 +124,7 @@ namespace LevelVsTimeAnalyzer {
             power.resize(sig.size());
             for (size_t i = 0; i < sig.size(); ++i) {
                 const double xcal = sig[i] * cal;
-                power[i] = xcal * xcal;
+                power[i] = xcal * xcal; // Pa^2
             }
         }
 
@@ -157,98 +160,11 @@ namespace LevelVsTimeAnalyzer {
             }
         }
 
-        // 单时间常数指数时间计权（Fast/Slow/Manual）
-        DVector computeSingleTauWeighting(
-            const DVector& power,
-            double fs,
-            double tau,
-            bool doWarmup)
-        {
-            DVector y;
-            if (power.empty() || fs <= 0.0) return y;
-
-            y.resize(power.size(), EPS);
-
-            const double dt = 1.0 / fs;
-            const double tauEff = std::max(tau, 1e-6);
-
-            const size_t nInit = std::max<size_t>(1, static_cast<size_t>(std::llround(tauEff * fs)));
-            const size_t initEnd = std::min(nInit, power.size());
-            double pInit = meanPower(power, 0, initEnd);
-            if (pInit < EPS) pInit = EPS;
-
-            double state = pInit;
-
-            if (doWarmup) {
-                const size_t nWarm = std::max<size_t>(1, static_cast<size_t>(std::llround(4.0 * tauEff * fs)));
-                const double aWarm = std::exp(-dt / tauEff);
-                for (size_t i = 0; i < nWarm; ++i) {
-                    state = aWarm * state + (1.0 - aWarm) * pInit;
-                    if (state < EPS) state = EPS;
-                }
-            }
-
-            const double a = std::exp(-dt / tauEff);
-            y[0] = state;
-
-            for (size_t n = 1; n < power.size(); ++n) {
-                const double in = power[n];
-                state = a * state + (1.0 - a) * in;
-                if (state < EPS) state = EPS;
-                y[n] = state;
-            }
-
-            return y;
-        }
-
-        // Impulse 双时间常数（35ms 上升 / 1.5s 下降）
-        // 修正：初始化改为首个输出步长窗口均值，避免全段偏低+慢爬升
-        DVector computeImpulseWeighting(
-            const DVector& power,
-            double fs,
-            size_t initWindowSamples)
-        {
-            DVector y;
-            if (power.empty() || fs <= 0.0) return y;
-
-            y.resize(power.size(), EPS);
-
-            constexpr double tauRise = 0.035;
-            constexpr double tauFall = 1.5;
-
-            const double dt = 1.0 / fs;
-            const double aRise = std::exp(-dt / tauRise);
-            const double aFall = std::exp(-dt / tauFall);
-
-            const size_t nInit = std::max<size_t>(1, initWindowSamples);
-            const size_t initEnd = std::min(nInit, power.size());
-
-            double state = meanPower(power, 0, initEnd);
-            if (state < EPS) state = EPS;
-
-            y[0] = state;
-
-            for (size_t n = 1; n < power.size(); ++n) {
-                const double in = std::max(power[n], EPS);
-                if (in >= state) {
-                    state = aRise * state + (1.0 - aRise) * in;
-                }
-                else {
-                    state = aFall * state + (1.0 - aFall) * in;
-                }
-                if (state < EPS) state = EPS;
-                y[n] = state;
-            }
-
-            return y;
-        }
-
-        // 块均值导出（Fast/Slow/Manual/Impulse 统一）
+        // 块均值导出（指数时间计权分支）
         void exportDownsampledLevelsByBlockMean(
             LevelSeries& out,
             const DVector& weightedPower,
             double fs,
-            double refPower,
             size_t outputStepSamples)
         {
             if (weightedPower.empty() || fs <= 0.0 || outputStepSamples == 0) return;
@@ -267,10 +183,50 @@ namespace LevelVsTimeAnalyzer {
                     (prefix[end] - prefix[rawIdx]) / static_cast<double>(end - rawIdx);
 
                 const double timeSec = static_cast<double>(rawIdx) / fs;
-                const double levelDb = safeDbPower(meanP, refPower);
+                const double levelPa = safePaFromPower(meanP);
 
-                out.points.push_back({ timeSec, levelDb });
-                updateMinMax(out, levelDb, first);
+                out.points.push_back({ timeSec, levelPa });
+                updateMinMax(out, levelPa, first);
+            }
+        }
+
+        // 每块取末样点导出（指数时间计权分支）
+        void exportDownsampledLevelsBySampleLast(
+            LevelSeries& out,
+            const DVector& weightedPower,
+            double fs,
+            size_t outputStepSamples)
+        {
+            if (weightedPower.empty() || fs <= 0.0 || outputStepSamples == 0) return;
+
+            bool first = true;
+            for (size_t rawIdx = 0; rawIdx < weightedPower.size(); rawIdx += outputStepSamples) {
+                const size_t end = std::min(weightedPower.size(), rawIdx + outputStepSamples);
+                if (end <= rawIdx) break;
+
+                const size_t idxLast = end - 1;
+                const double p = weightedPower[idxLast];
+
+                // 时间标签与样点对齐（块末）
+                const double timeSec = static_cast<double>(idxLast) / fs;
+                const double levelPa = safePaFromPower(p);
+
+                out.points.push_back({ timeSec, levelPa });
+                updateMinMax(out, levelPa, first);
+            }
+        }
+
+        void exportDownsampledLevelsForExpWeighting(
+            LevelSeries& out,
+            const DVector& weightedPower,
+            double fs,
+            size_t outputStepSamples)
+        {
+            if (kUseSampleLastForExpWeighting) {
+                exportDownsampledLevelsBySampleLast(out, weightedPower, fs, outputStepSamples);
+            }
+            else {
+                exportDownsampledLevelsByBlockMean(out, weightedPower, fs, outputStepSamples);
             }
         }
 
@@ -304,12 +260,11 @@ namespace LevelVsTimeAnalyzer {
             return sum / static_cast<double>(windowSamples);
         }
 
-        // Rectangle：固定窗长矩形均值 + 左对齐帧推进 + 0.4W 时间标签 + 有限尾段容忍
+        // Rectangle：固定窗长矩形均值 + 左对齐帧推进 + 0.4W 时间标签 + 有限尾段容忍 -> 输出Pa
         void exportRectangleLevelsByFrames(
             LevelSeries& out,
             const DVector& power,
             double fs,
-            double refPower,
             size_t windowSamples,
             size_t outputStepSamples)
         {
@@ -352,10 +307,10 @@ namespace LevelVsTimeAnalyzer {
                 }
 
                 const double timeSec = t0 + static_cast<double>(k) * dt;
-                const double levelDb = safeDbPower(meanP, refPower);
+                const double levelPa = safePaFromPower(meanP);
 
-                out.points.push_back({ timeSec, levelDb });
-                updateMinMax(out, levelDb, first);
+                out.points.push_back({ timeSec, levelPa });
+                updateMinMax(out, levelPa, first);
             }
         }
     }
@@ -403,11 +358,9 @@ namespace LevelVsTimeAnalyzer {
         if (outputStepSamples == 0) outputStepSamples = 1;
         out.outputStepSamples = outputStepSamples;
 
-        const double ref = (p.octaveRefValue > 0.0) ? p.octaveRefValue : 20e-6;
         const double cal = (p.calibrationFactor > 0.0) ? p.calibrationFactor : 1.0;
-        const double refPower = ref * ref;
 
-        debugPrintRuntimeDecision(mode, outputStepSec, outputStepSamples, ref, refPower, cal, fs);
+        debugPrintRuntimeDecision(mode, outputStepSec, outputStepSamples, cal, fs);
         debugPrintModeConstants(mode, p);
 
         DVector power;
@@ -415,30 +368,37 @@ namespace LevelVsTimeAnalyzer {
         if (power.empty()) return out;
 
         if (mode == TimeWeightingMode::Fast) {
-            const DVector y = computeSingleTauWeighting(power, fs, 0.125, true);
-            exportDownsampledLevelsByBlockMean(out, y, fs, refPower, outputStepSamples);
+            const DVector y = TimeWeighting::applyByMode(
+                power, fs, TimeWeighting::Mode::Fast, 0.125, outputStepSamples, true);
+            exportDownsampledLevelsForExpWeighting(out, y, fs, outputStepSamples);
             return out;
         }
 
         if (mode == TimeWeightingMode::Slow) {
-            const DVector y = computeSingleTauWeighting(power, fs, 1.0, true);
-            exportDownsampledLevelsByBlockMean(out, y, fs, refPower, outputStepSamples);
+            const DVector y = TimeWeighting::applyByMode(
+                power, fs, TimeWeighting::Mode::Slow, 0.125, outputStepSamples, true);
+            exportDownsampledLevelsForExpWeighting(out, y, fs, outputStepSamples);
             return out;
         }
 
         if (mode == TimeWeightingMode::Impulse) {
             // 关键修正：
-            // 1) 初值用首个输出步长窗口均值
-            // 2) 导出用块均值（与 Artemis 导出更一致）
-            const DVector y = computeImpulseWeighting(power, fs, outputStepSamples);
-            exportDownsampledLevelsByBlockMean(out, y, fs, refPower, outputStepSamples);
+            // 1) Impulse 初始窗口不再绑定输出步长
+            // 2) 使用与 tauRise 对齐的固定窗口（约35ms）
+            size_t impulseInitWindowSamples = static_cast<size_t>(std::llround(0.035 * fs));
+            if (impulseInitWindowSamples == 0) impulseInitWindowSamples = 1;
+
+            const DVector y = TimeWeighting::applyByMode(
+                power, fs, TimeWeighting::Mode::Impulse, 0.125, impulseInitWindowSamples, true);
+            exportDownsampledLevelsForExpWeighting(out, y, fs, outputStepSamples);
             return out;
         }
 
         if (mode == TimeWeightingMode::Manual) {
             const double tau = clampPositive(p.level_time_constant_sec, 0.125);
-            const DVector y = computeSingleTauWeighting(power, fs, tau, true);
-            exportDownsampledLevelsByBlockMean(out, y, fs, refPower, outputStepSamples);
+            const DVector y = TimeWeighting::applyByMode(
+                power, fs, TimeWeighting::Mode::Manual, tau, outputStepSamples, true);
+            exportDownsampledLevelsForExpWeighting(out, y, fs, outputStepSamples);
             return out;
         }
 
@@ -447,7 +407,7 @@ namespace LevelVsTimeAnalyzer {
             size_t windowSamples = static_cast<size_t>(std::llround(windowSec * fs));
             if (windowSamples == 0) windowSamples = 1;
 
-            exportRectangleLevelsByFrames(out, power, fs, refPower, windowSamples, outputStepSamples);
+            exportRectangleLevelsByFrames(out, power, fs, windowSamples, outputStepSamples);
             return out;
         }
     }

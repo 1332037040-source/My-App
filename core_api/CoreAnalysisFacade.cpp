@@ -9,32 +9,21 @@
 #include "../io/HDFReader.h"
 #include "../domain/ParseUtils.h"
 
+#include <iostream>
+#include <iomanip>
+#include <algorithm>
+
 namespace
 {
     AnalysisMode toAnalysisMode(const std::string& mode)
     {
-        if (mode == "fft") {
-            return AnalysisMode::FFT;
-        }
-        if (mode == "fft_vs_time") {
-            return AnalysisMode::FFT_VS_TIME;
-        }
-        if (mode == "fft_vs_rpm") {
-            return AnalysisMode::FFT_VS_RPM;
-        }
-        if (mode == "octave" || mode == "octave_1_1") {
-            return AnalysisMode::OCTAVE_1_1;
-        }
-        if (mode == "octave_1_3") {
-            return AnalysisMode::OCTAVE_1_3;
-        }
-        if (mode == "level_vs_time") {
-            return AnalysisMode::LEVEL_VS_TIME;
-        }
-        if (mode == "level_vs_rpm") {
-            return AnalysisMode::LEVEL_VS_RPM;
-        }
-
+        if (mode == "fft") return AnalysisMode::FFT;
+        if (mode == "fft_vs_time") return AnalysisMode::FFT_VS_TIME;
+        if (mode == "fft_vs_rpm") return AnalysisMode::FFT_VS_RPM;
+        if (mode == "octave" || mode == "octave_1_1") return AnalysisMode::OCTAVE_1_1;
+        if (mode == "octave_1_3") return AnalysisMode::OCTAVE_1_3;
+        if (mode == "level_vs_time") return AnalysisMode::LEVEL_VS_TIME;
+        if (mode == "level_vs_rpm") return AnalysisMode::LEVEL_VS_RPM;
         return AnalysisMode::FFT;
     }
 
@@ -47,15 +36,11 @@ namespace
         selectedChannels.clear();
         errorMessage.clear();
 
-        if (channelName.empty()) {
-            return true;
-        }
+        if (channelName.empty()) return true;
 
         const std::string ext = get_ext_lower(filePath);
 
-        if (ext == "wav") {
-            return true;
-        }
+        if (ext == "wav") return true;
 
         if (ext == "atfx") {
             FFT11_ATFXReader reader;
@@ -105,12 +90,8 @@ namespace
 
     void fillCurve2DIfPresent(const JobResult& jr, CoreAnalysisResult& result)
     {
-        if (jr.curveX.empty() || jr.curveY.empty()) {
-            return;
-        }
-        if (jr.curveX.size() != jr.curveY.size()) {
-            return;
-        }
+        if (jr.curveX.empty() || jr.curveY.empty()) return;
+        if (jr.curveX.size() != jr.curveY.size()) return;
 
         result.hasCurve2D = true;
         result.curve2D.x = jr.curveX;
@@ -123,12 +104,8 @@ namespace
 
     void fillHeatmap3DIfPresent(const JobResult& jr, CoreAnalysisResult& result)
     {
-        if (jr.heatmapFreqFrames.empty() || jr.heatmapAmpFrames.empty()) {
-            return;
-        }
-        if (jr.heatmapFreqFrames.size() != jr.heatmapAmpFrames.size()) {
-            return;
-        }
+        if (jr.heatmapFreqFrames.empty() || jr.heatmapAmpFrames.empty()) return;
+        if (jr.heatmapFreqFrames.size() != jr.heatmapAmpFrames.size()) return;
 
         result.hasHeatmap3D = true;
         result.heatmap3D.freqFrames = jr.heatmapFreqFrames;
@@ -137,6 +114,52 @@ namespace
         result.heatmap3D.xUnit = jr.heatmapXUnit.empty() ? "Hz" : jr.heatmapXUnit;
         result.heatmap3D.yUnit = jr.heatmapYUnit;
         result.heatmap3D.zUnit = jr.heatmapZUnit;
+    }
+
+    void debugPrintQtBridgeResult(const CoreAnalysisRequest& request, const CoreAnalysisResult& result)
+    {
+        std::cout << "\n========== [CoreAnalysisFacade::QtBridgeCheck] ==========\n";
+        std::cout << "mode=" << request.analysisMode
+            << ", success=" << (result.success ? "true" : "false")
+            << ", message=" << result.message << "\n";
+
+        std::cout << "generatedFiles=" << result.generatedFiles.size() << "\n";
+        if (!result.levelVsTimeCsv.empty()) std::cout << "levelVsTimeCsv=" << result.levelVsTimeCsv << "\n";
+        if (!result.levelVsRpmCsv.empty()) std::cout << "levelVsRpmCsv=" << result.levelVsRpmCsv << "\n";
+        if (!result.fftCsv.empty()) std::cout << "fftCsv=" << result.fftCsv << "\n";
+
+        std::cout << "\n[2D] hasCurve2D=" << (result.hasCurve2D ? "true" : "false") << "\n";
+        if (result.hasCurve2D) {
+            std::cout << "curve2D.name=" << result.curve2D.name << "\n";
+            std::cout << "curve2D.isDb=" << (result.curve2D.isDb ? "true" : "false")
+                << ", xUnit=" << result.curve2D.xUnit
+                << ", yUnit=" << result.curve2D.yUnit << "\n";
+            std::cout << "curve2D.x.size=" << result.curve2D.x.size()
+                << ", curve2D.y.size=" << result.curve2D.y.size() << "\n";
+
+            const size_t n = std::min<size_t>(5, result.curve2D.y.size());
+            std::cout << std::setprecision(10);
+            for (size_t i = 0; i < n; ++i) {
+                std::cout << "  curve2D.y[" << i << "]=" << result.curve2D.y[i] << "\n";
+            }
+        }
+
+        std::cout << "\n[3D] hasHeatmap3D=" << (result.hasHeatmap3D ? "true" : "false") << "\n";
+        if (result.hasHeatmap3D) {
+            std::cout << "heatmap3D.isDb=" << (result.heatmap3D.isDb ? "true" : "false")
+                << ", xUnit=" << result.heatmap3D.xUnit
+                << ", yUnit=" << result.heatmap3D.yUnit
+                << ", zUnit=" << result.heatmap3D.zUnit << "\n";
+            std::cout << "heatmap3D.freqFrames.size=" << result.heatmap3D.freqFrames.size()
+                << ", heatmap3D.ampFrames.size=" << result.heatmap3D.ampFrames.size() << "\n";
+
+            if (!result.heatmap3D.ampFrames.empty() && !result.heatmap3D.ampFrames[0].empty()) {
+                std::cout << std::setprecision(10)
+                    << "  heatmap3D.ampFrames[0][0]=" << result.heatmap3D.ampFrames[0][0] << "\n";
+            }
+        }
+
+        std::cout << "=========================================================\n";
     }
 } // namespace
 
@@ -195,11 +218,37 @@ bool CoreAnalysisFacade::validateRequest(const CoreAnalysisRequest& request, Cor
     return true;
 }
 
-CoreAnalysisResult CoreAnalysisFacade::run(const CoreAnalysisRequest& request)
+CoreAnalysisResult CoreAnalysisFacade::runForCliCsv(const CoreAnalysisRequest& request)
 {
+    return runImpl(
+        request,
+        true,                   // forceWriteCsv
+        true,                   // returnFilePaths
+        request.returnInMemory  // forceReturnInMemory
+    );
+}
+
+CoreAnalysisResult CoreAnalysisFacade::runForQtMemory(const CoreAnalysisRequest& request)
+{
+    return runImpl(
+        request,
+        false,  // forceWriteCsv
+        false,  // returnFilePaths
+        true    // forceReturnInMemory
+    );
+}
+
+CoreAnalysisResult CoreAnalysisFacade::runImpl(
+    const CoreAnalysisRequest& request,
+    bool forceWriteCsv,
+    bool returnFilePaths,
+    bool forceReturnInMemory)
+{
+    std::cout << "[HIT] CoreAnalysisFacade::runImpl\n";
     CoreAnalysisResult result;
 
     if (!validateRequest(request, result)) {
+        debugPrintQtBridgeResult(request, result);
         return result;
     }
 
@@ -217,6 +266,7 @@ CoreAnalysisResult CoreAnalysisFacade::run(const CoreAnalysisRequest& request)
             channelErr)) {
             result.success = false;
             result.message = channelErr;
+            debugPrintQtBridgeResult(request, result);
             return result;
         }
 
@@ -260,6 +310,7 @@ CoreAnalysisResult CoreAnalysisFacade::run(const CoreAnalysisRequest& request)
     runReq.maxThreads = request.maxThreads;
     runReq.maxRetries = request.maxRetries;
     runReq.enableCancel = request.enableCancel;
+    runReq.writeCsvToDisk = forceWriteCsv; // 关键：由入口策略决定
 
     MappedRunConfig mapped = MapRunRequest(runReq);
 
@@ -267,6 +318,7 @@ CoreAnalysisResult CoreAnalysisFacade::run(const CoreAnalysisRequest& request)
     if (!buildResp.ok) {
         result.success = false;
         result.message = "TaskBuilder failed: " + buildResp.message;
+        debugPrintQtBridgeResult(request, result);
         return result;
     }
 
@@ -280,46 +332,49 @@ CoreAnalysisResult CoreAnalysisFacade::run(const CoreAnalysisRequest& request)
     result.message = result.success ? "OK" : "Engine finished with failures.";
 
     for (const auto& jr : engineResult.results) {
-        if (!jr.timeCsvPath.empty()) {
-            result.timeSignalCsv = jr.timeCsvPath;
-            result.generatedFiles.push_back(jr.timeCsvPath);
-        }
-
-        if (!jr.fftCsvPath.empty()) {
-            result.fftCsv = jr.fftCsvPath;
-            result.generatedFiles.push_back(jr.fftCsvPath);
-        }
-
-        if (!jr.levelVsTimeCsvPath.empty()) {
-            result.levelVsTimeCsv = jr.levelVsTimeCsvPath;
-            result.generatedFiles.push_back(jr.levelVsTimeCsvPath);
-        }
-
-        if (!jr.levelVsRpmCsvPath.empty()) {
-            result.levelVsRpmCsv = jr.levelVsRpmCsvPath;
-            result.generatedFiles.push_back(jr.levelVsRpmCsvPath);
+        if (returnFilePaths) {
+            if (!jr.timeCsvPath.empty()) {
+                result.timeSignalCsv = jr.timeCsvPath;
+                result.generatedFiles.push_back(jr.timeCsvPath);
+            }
+            if (!jr.fftCsvPath.empty()) {
+                result.fftCsv = jr.fftCsvPath;
+                result.generatedFiles.push_back(jr.fftCsvPath);
+            }
+            if (!jr.levelVsTimeCsvPath.empty()) {
+                result.levelVsTimeCsv = jr.levelVsTimeCsvPath;
+                result.generatedFiles.push_back(jr.levelVsTimeCsvPath);
+            }
+            if (!jr.levelVsRpmCsvPath.empty()) {
+                result.levelVsRpmCsv = jr.levelVsRpmCsvPath;
+                result.generatedFiles.push_back(jr.levelVsRpmCsvPath);
+            }
         }
 
         result.peakFrequency = jr.peak.freq;
         result.peakValue = jr.peak.mag;
 
-        // 新增：内存结果透传（前提：JobResult 已填充对应字段）
-        fillCurve2DIfPresent(jr, result);
-        fillHeatmap3DIfPresent(jr, result);
+        if (forceReturnInMemory) {
+            fillCurve2DIfPresent(jr, result);
+            fillHeatmap3DIfPresent(jr, result);
+        }
 
         if (!jr.ok && !jr.message.empty()) {
             result.message = jr.message;
         }
     }
 
-    if (runReq.mode == AnalysisMode::FFT_VS_TIME ||
-        runReq.mode == AnalysisMode::FFT_VS_RPM) {
-        result.spectrogramCsv = result.fftCsv;
-    }
-    else if (runReq.mode == AnalysisMode::OCTAVE_1_1 ||
-        runReq.mode == AnalysisMode::OCTAVE_1_3) {
-        result.octaveCsv = result.fftCsv;
+    if (returnFilePaths) {
+        if (runReq.mode == AnalysisMode::FFT_VS_TIME ||
+            runReq.mode == AnalysisMode::FFT_VS_RPM) {
+            result.spectrogramCsv = result.fftCsv;
+        }
+        else if (runReq.mode == AnalysisMode::OCTAVE_1_1 ||
+            runReq.mode == AnalysisMode::OCTAVE_1_3) {
+            result.octaveCsv = result.fftCsv;
+        }
     }
 
+    debugPrintQtBridgeResult(request, result);
     return result;
 }

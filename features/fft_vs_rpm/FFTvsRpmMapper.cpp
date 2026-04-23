@@ -8,32 +8,8 @@
 namespace FFTvsRpmMapper {
 
     namespace {
-        constexpr double EPS = 1e-30;
-
-        // ===== A/B 开关 1：聚合方式 =====
-        // true  -> 功率均值(先db->power��均值后再转db)
-        // false -> dB直接均值
-        constexpr bool kUsePowerAverage = true;
-
-        // ===== A/B 开关 2：rpm映射方式 =====
-        // true  -> 线性分摊到相邻两个rpm bin（推荐）
-        // false -> 最近邻单bin归属
+        // 线性幅值通路（Pa）
         constexpr bool kUseLinearRpmSplit = true;
-
-        // ===== A/B 开关 3：可选全局dB补偿（先保持0）=====
-        constexpr double kGlobalDbOffset = 0.0;
-
-        inline double dbToPower(double db) {
-            return std::pow(10.0, db / 10.0);
-        }
-
-        inline double powerToDb(double p) {
-            return 10.0 * std::log10((p > EPS) ? p : EPS);
-        }
-
-        inline double applyOffset(double db) {
-            return db + kGlobalDbOffset;
-        }
     }
 
     double InterpRpmAtTime(
@@ -70,6 +46,7 @@ namespace FFTvsRpmMapper {
         if (sp.timeBins == 0 || sp.freqBins == 0) return out;
         if (frameTimeSec.size() != sp.timeBins) return out;
         if (rpmSignal.empty() || fsRpm <= 0.0) return out;
+        if (sp.dataLinear.empty()) return out;
 
         // 固定rpm轴（对齐Artemis）
         out.rpmMin = 50.0;
@@ -79,12 +56,9 @@ namespace FFTvsRpmMapper {
             ) + 1;
         if (out.rpmBins == 0) return out;
 
-        // 权重计数（线性分摊时用权重和；最近邻时退化为计数）
+        // 权重和 + Pa线性幅值累计
         std::vector<double> weightSum(out.rpmBins, 0.0);
-
-        // 两种累计容器（二选一使用）
-        std::vector<double> accDb(out.rpmBins * out.freqBins, 0.0);
-        std::vector<double> accP(out.rpmBins * out.freqBins, 0.0);
+        std::vector<double> accLin(out.rpmBins * out.freqBins, 0.0);
 
         double seenMin = std::numeric_limits<double>::infinity();
         double seenMax = -std::numeric_limits<double>::infinity();
@@ -93,21 +67,11 @@ namespace FFTvsRpmMapper {
             if (r >= out.rpmBins || w <= 0.0) return;
             weightSum[r] += w;
 
-            if (kUsePowerAverage) {
-                for (size_t f = 0; f < out.freqBins; ++f) {
-                    const double db = sp.atDb(t, f);
-                    if (!std::isfinite(db)) continue;
-                    if (db <= -300.0) continue; // 忽略无效/填充值
-                    accP[r * out.freqBins + f] += w * dbToPower(db);
-                }
-            }
-            else {
-                for (size_t f = 0; f < out.freqBins; ++f) {
-                    const double db = sp.atDb(t, f);
-                    if (!std::isfinite(db)) continue;
-                    if (db <= -300.0) continue;
-                    accDb[r * out.freqBins + f] += w * db;
-                }
+            for (size_t f = 0; f < out.freqBins; ++f) {
+                const double v = sp.atLinear(t, f); // Pa
+                if (!std::isfinite(v)) continue;
+                if (v < 0.0) continue; // 线性幅值不应为负
+                accLin[r * out.freqBins + f] += w * v;
             }
             };
 
@@ -121,9 +85,8 @@ namespace FFTvsRpmMapper {
             if (kUseLinearRpmSplit) {
                 const long long r0 = static_cast<long long>(std::floor(x));
                 const long long r1 = r0 + 1;
-                const double a = x - static_cast<double>(r0); // [0,1)
+                const double a = x - static_cast<double>(r0);
 
-                // 分摊到相邻两bin，越界自动丢弃
                 if (r0 >= 0 && r0 < static_cast<long long>(out.rpmBins)) {
                     addFrameToBin(static_cast<size_t>(r0), (1.0 - a), t);
                 }
@@ -140,32 +103,22 @@ namespace FFTvsRpmMapper {
             }
         }
 
-        out.dataDb.assign(out.rpmBins * out.freqBins, -300.0);
+        // 注意：沿用 dataDb 字段存放“线性Pa”以减少结构改动
+        out.dataDb.assign(out.rpmBins * out.freqBins, 0.0);
 
         for (size_t r = 0; r < out.rpmBins; ++r) {
             const double w = weightSum[r];
             if (w <= 0.0) continue;
 
             const double invW = 1.0 / w;
-
-            if (kUsePowerAverage) {
-                for (size_t f = 0; f < out.freqBins; ++f) {
-                    const double meanP = accP[r * out.freqBins + f] * invW;
-                    out.at(r, f) = applyOffset(powerToDb(meanP));
-                }
-            }
-            else {
-                for (size_t f = 0; f < out.freqBins; ++f) {
-                    const double meanDb = accDb[r * out.freqBins + f] * invW;
-                    out.at(r, f) = applyOffset(meanDb);
-                }
+            for (size_t f = 0; f < out.freqBins; ++f) {
+                const double meanLin = accLin[r * out.freqBins + f] * invW; // Pa
+                out.at(r, f) = meanLin;
             }
         }
 
-        std::cout << "[DEBUG] FFTvsRpmMapper:"
-            << " usePowerAverage=" << (kUsePowerAverage ? 1 : 0)
-            << ", useLinearRpmSplit=" << (kUseLinearRpmSplit ? 1 : 0)
-            << ", globalDbOffset=" << kGlobalDbOffset
+        std::cout << "[DEBUG] FFTvsRpmMapper(Pa):"
+            << " useLinearRpmSplit=" << (kUseLinearRpmSplit ? 1 : 0)
             << ", rpmMin=" << out.rpmMin
             << ", rpmMax=" << out.rpmMax
             << ", rpmStep=" << out.rpmStep
@@ -174,15 +127,6 @@ namespace FFTvsRpmMapper {
             << ", freqBins=" << sp.freqBins
             << ", seenRpm=[" << seenMin << ", " << seenMax << "]"
             << std::endl;
-
-        std::cout << "[DEBUG] FFTvsRpmMapper non-empty bins:";
-        for (size_t r = 0; r < out.rpmBins; ++r) {
-            if (weightSum[r] > 0.0) {
-                const double rpm = out.rpmMin + static_cast<double>(r) * out.rpmStep;
-                std::cout << " (" << rpm << ":" << weightSum[r] << ")";
-            }
-        }
-        std::cout << std::endl;
 
         return out;
     }

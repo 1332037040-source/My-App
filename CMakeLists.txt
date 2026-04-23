@@ -7,45 +7,38 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CORE_SOURCES
     core/Utils.cpp
-
     fft/FFTCore.cpp
     fft/Analyzer.cpp
-
     preprocess/Window.cpp
     preprocess/Preprocessing.cpp
     preprocess/AudioBlocking.cpp
     preprocess/Weighting.cpp
-
+    preprocess/TimeWeighting.cpp
     io/WAVReader.cpp
     io/ATFXReader.cpp
     io/HDFReader.cpp
-
     pugixml.cpp
     domain/ParseUtils.cpp
-
     executor/FFTExecutor.cpp
     executor/ParallelRunner.cpp
     engine/Engine.cpp
-
     features/fft_vs_time/FFTvsTimeAnalyzer.cpp
     features/fft_vs_rpm/FFTvsRpmMapper.cpp
     features/octave_band/OctaveAnalyzer.cpp
     features/level_vs_time/LevelVsTimeAnalyzer.cpp
-
+    features/level_vs_rpm/levelVsRpmAnalyzer.cpp
+    features/order_tracking/AngleResampler.cpp
     app/RunRequestMapper.cpp
-
     planner/TaskBuilder.cpp
-
     services/DataReaderService.cpp
-    services/SpectrumService.cpp
+    services/spectrumService.cpp
     services/ExportService.cpp
-
     flows/FFTFlow.cpp
     flows/FFTvsTimeFlow.cpp
     flows/FFTvsRpmFlow.cpp
     flows/OctaveFlow.cpp
     flows/LevelVsTimeFlow.cpp
-
+    flows/LevelVsRpmFlow.cpp
     core_api/CoreAnalysisFacade.cpp
     core_api/CoreDataFacade.cpp
 )
@@ -54,23 +47,24 @@ set(CORE_HEADERS
     core_api/CoreAnalysisRequest.h
     core_api/CoreAnalysisResult.h
     core_api/CoreAnalysisFacade.h
-
     core_api/CoreFileInfo.h
     core_api/CoreChannelInfo.h
     core_api/CoreChannelListResult.h
     core_api/CoreSignalData.h
     core_api/CoreDataRequest.h
     core_api/CoreDataFacade.h
-
     features/level_vs_time/LevelVsTimeAnalyzer.h
+    features/level_vs_rpm/LevelVsRpmAnalyzer.h
     flows/LevelVsTimeFlow.h
+    flows/LevelVsRpmFlow.h
     flows/FFTvsRpmFlow.h
+    features/order_tracking/AngleResampler.h
 )
 
 add_library(myapp_core STATIC
     ${CORE_SOURCES}
     ${CORE_HEADERS}
- "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp" "features/order_tracking/AngleResampler.h" "features/level_vs_rpm/levelVsRpmAnalyzer.cpp" "flows/LevelVsRpmFlow.cpp")
+)
 
 target_include_directories(myapp_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -93,7 +87,7 @@ set(CLI_SOURCES
 
 add_executable(MyApp
     ${CLI_SOURCES}
- "features/order_tracking/AngleResampler.h" "features/order_tracking/AngleResampler.cpp" "features/order_tracking/AngleResampler.h" "features/level_vs_rpm/levelVsRpmAnalyzer.cpp" "flows/LevelVsRpmFlow.cpp")
+)
 
 target_include_directories(MyApp PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <string>
 #include <vector>
+#include <cstddef>
 
 struct CoreCurve2D
 {
@@ -14,7 +15,6 @@ struct CoreCurve2D
 
 struct CoreHeatmap3D
 {
-    // 每一帧一条曲线：freqFrames[i].size == ampFrames[i].size
     std::vector<std::vector<double>> freqFrames;
     std::vector<std::vector<double>> ampFrames;
 
@@ -40,7 +40,6 @@ struct CoreAnalysisResult
     double peakFrequency = 0.0;
     double peakValue = 0.0;
 
-    // ===== 新增：内存结果接口 =====
     bool hasCurve2D = false;
     CoreCurve2D curve2D;
 
